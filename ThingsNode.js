@@ -6,13 +6,16 @@ const uuidv1 = require('uuid/v1');
 var display_debug_messages = true;
 debug('node\n');
 
-function ThingsNode(){
+function ThingsNode(pubsubURL, nodeID, storageDir, fileDir){
+
+    if (storageDir == null) {storageDir = '/storage' + nodeID}
+    if (fileDir == null) {fileDir = '/fileDir' + nodeID}
 
     this.fileMeta = new Map();
-    this.id = process.argv.slice(2)[0];
-    this.persistDir = process.argv.slice(2)[1]; //C:/Users/effat/ThingsJS/client"
-    this.fileDir = process.argv.slice(2)[2] + "/"; //"C:/Users/effat/ThingsJS/myClient"
-    this.pubsubURL = process.argv.slice(2)[3]; //'mqtt://localhost'
+    this.id = nodeID;
+    this.persistDir = storageDir;
+    this.fileDir = fileDir + "/";
+    this.pubsubURL = pubsubURL; //'mqtt://localhost'
     var self = this;
     this.metadata = [];
     this.cachedFiles = new Cache();
@@ -36,10 +39,10 @@ function ThingsNode(){
             
         });
     }).then(function(val){
-                pubsub = new things.Pubsub(self.pubsubURL);
+                self.pubsub = new things.Pubsub(self.pubsubURL);
                 var myNodeTopic = "'" + self.id + "'";
                 debug('subscribing to self id: ', myNodeTopic);
-                pubsub.subscribe(myNodeTopic, async function(request){
+                self.pubsub.subscribe(myNodeTopic, async function(request){
                     debug('handling request: ', request);
                     if (request.sender == 'master')
                     {
@@ -82,11 +85,11 @@ function ThingsNode(){
                                 var copyRequest = 
                                 {sender: 'dataNode', type: 'copyRequest', file: request.file, id: self.id};
                                 var contactNodeTopic = "'" + concurrentNode + "'";
-                                pubsub.publish(contactNodeTopic, copyRequest);
+                                self.pubsub.publish(contactNodeTopic, copyRequest);
                             }
 
                             var myFileMeta = 
-                                new FileMetadata(self.id, location, isPrimaryNode, concurrentNode);
+                                new FileMetadata(self.pubsub, self.id, location, isPrimaryNode, concurrentNode);
                             await storage.setItem(
                                 request.file,
                                 {location: location, 
@@ -95,7 +98,7 @@ function ThingsNode(){
                             if (request.type == 'newFile')
                             {
                                 // Acknowledge to master that metadata has been created.
-                                pubsub.publish(request.id, 'metadataCreated');
+                                self.pubsub.publish(request.id, 'metadataCreated');
                             }
                         }
                         self.fileMeta.set(request.file, myFileMeta);
@@ -111,7 +114,7 @@ function ThingsNode(){
                                 if (cachedReplica != null)
                                 {
                                     var myResponse = {sender: 'dataNode', err: null, data: cachedReplica};
-                                    pubsub.publish(request.id, myResponse);
+                                    self.pubsub.publish(request.id, myResponse);
                                     
                                 }
                                 else{
@@ -121,7 +124,7 @@ function ThingsNode(){
                                         {
                                             // Data integrity verified.
                                             var myResponse = {sender: 'dataNode', err: err, data: data.toString()};
-                                            pubsub.publish(request.id, myResponse);
+                                            self.pubsub.publish(request.id, myResponse);
                                             self.cachedFiles.cacheFile(request.file, data.toString());
                                         }
                                         else
@@ -133,12 +136,12 @@ function ThingsNode(){
                                                 {sender: 'dataNode', type: 'copyRequest', file: request.file, id: self.id};
                                             debug('copy request: ', copyRequest);
                                             var contactNodeTopic = "'" + fileMetadata.concurrentNode + "'";
-                                            pubsub.publish(contactNodeTopic, copyRequest);
+                                            self.pubsub.publish(contactNodeTopic, copyRequest);
     
                                             // Ask client to try the concurrent Node instead.
                                             var myResponse = 
                                                 {sender: 'dataNode', status: 'alternativeNode', altNodeID: fileMetadata.concurrentNode};
-                                            pubsub.publish(request.id, myResponse);
+                                                self.pubsub.publish(request.id, myResponse);
                                         }
                                         
                                     })
@@ -163,7 +166,7 @@ function ThingsNode(){
                                 var copyResponse = 
                                 {sender: 'dataNode', type: 'copyResponse', err:err, data: data, file: request.file};
                                 var resNodeTopic = "'" + request.id + "'"; 
-                                pubsub.publish(resNodeTopic, copyResponse);
+                                self.pubsub.publish(resNodeTopic, copyResponse);
                             })
                         }
                         else if (request.type == 'copyResponse')
@@ -194,7 +197,7 @@ function ThingsNode(){
                                 {
                                     tempFileMeta.updateChecksum('append', request.data);
                                 }
-                                pubsub.publish(request.id, err);
+                                self.pubsub.publish(request.id, err);
 
                             })
                         }
@@ -212,7 +215,7 @@ function ThingsNode(){
                                 {
                                     tempFileMeta.updateChecksum('write', request.data);
                                 }
-                                pubsub.publish(request.id, err);
+                                self.pubsub.publish(request.id, err);
 
                             })
 
@@ -221,13 +224,12 @@ function ThingsNode(){
                 }).then(function(topic){
                     debug('subscribed to topic: ', topic);
                 })
-                //pubsub.on('ready', function(){
-                    debug('pubsub connected');
+
                 var myMetadata = {id: self.id, files: Array.from(self.fileMeta.keys()), metadata: Array.from(self.fileMeta.values())};
-                pubsub.publish('nodeHandshake', myMetadata).then(function(){
+                self.pubsub.publish('nodeHandshake', myMetadata).then(function(){
                     //heartbeat Interval
                     setInterval(function(){
-                        pubsub.publish('heartbeat', {id: self.id});
+                        self.pubsub.publish('heartbeat', {id: self.id});
                     }, 3000)
                 })    
             
@@ -240,18 +242,18 @@ ThingsNode.prototype.parseMetadata = function(pair){
     var isPrimaryNode = pair.value.primaryNode;
     var concurrentNodeID = pair.value.concurrentNodeID;
 
-    var newMetadata = new FileMetadata(this.id, location, isPrimaryNode, concurrentNodeID);
+    var newMetadata = new FileMetadata(this.pubsub, this.id, location, isPrimaryNode, concurrentNodeID);
     newMetadata.calculateInitialChecksum();
     return newMetadata;
 }
 
-function FileMetadata(id, location, isPrimaryNode=true, concurrentNode=null){
+function FileMetadata(pubsub, id, location, isPrimaryNode=true, concurrentNode=null){
     this.id = id;  //device ID, also to be used as pubsub topic to communicate with that device
     this.isPrimaryNode = isPrimaryNode;  //by default the object is for a primary node record
     this.concurrentNode = concurrentNode;
     this.location = location;
     this.checksum = 0;
-
+    this.pubsub = pubsub;
     this.queue = [];
 }
 
@@ -315,10 +317,10 @@ FileMetadata.prototype.next = function()
                 self.updateChecksum('append', tempRequest.data);
                 // Forward the request to secondary node, wait for acknowledgment
                 var requestID = uuidv1();
-                pubsub.subscribe(requestID, function(response){
+                self.pubsub.subscribe(requestID, function(response){
                     var myResponse = {sender: 'dataNode', err: err};
-                    pubsub.publish(tempRequest.id, myResponse);
-                    pubsub.unsubscribe(requestID);
+                    self.pubsub.publish(tempRequest.id, myResponse);
+                    self.pubsub.unsubscribe(requestID);
                 })
                     .then(function(topic){
                         if (topic != requestID)
@@ -335,7 +337,7 @@ FileMetadata.prototype.next = function()
                             type: 'replicateAppend'};
         
                         var concurrentNodeTopic = "'" + self.concurrentNode + "'";
-                        pubsub.publish(concurrentNodeTopic, replicateAppendRequest)
+                        self.pubsub.publish(concurrentNodeTopic, replicateAppendRequest)
                     })
                 self.queue.shift();
                 if(self.queue.length > 0)
@@ -357,10 +359,10 @@ FileMetadata.prototype.next = function()
                 self.updateChecksum('write', tempRequest.data);
                 // Forward the request to secondary node, wait for acknowledgment
                 var requestID = uuidv1();
-                pubsub.subscribe(requestID, function(response){
+                self.pubsub.subscribe(requestID, function(response){
                     var myResponse = {sender: 'dataNode', err: err};
-                    pubsub.publish(tempRequest.id, myResponse);
-                    pubsub.unsubscribe(requestID);
+                    self.pubsub.publish(tempRequest.id, myResponse);
+                    self.pubsub.unsubscribe(requestID);
                 })
                     .then(function(topic){
                         if (topic != requestID)
@@ -377,7 +379,7 @@ FileMetadata.prototype.next = function()
                             type: 'replicateWrite'};
         
                         var concurrentNodeTopic = "'" + self.concurrentNode + "'";
-                        pubsub.publish(concurrentNodeTopic, replicateWriteRequest)
+                        self.pubsub.publish(concurrentNodeTopic, replicateWriteRequest)
                     })
                 self.queue.shift();
                 if(self.queue.length > 0)
@@ -458,4 +460,5 @@ Cache.prototype.invalidateCache = function(filename)
         this.files.delete(filename);
     }
 }
-var obj = new ThingsNode();
+
+module.exports = ThingsNode;

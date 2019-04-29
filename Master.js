@@ -1,15 +1,7 @@
-var storage = require('node-persist');
 var things = require('things-js');
 const uuidv1 = require('uuid/v1');
 
 const display_debug_messages = true;
-
-var pubsubURL = process.argv.slice(2)[0]; //'mqtt://localhost'
-var masterMetadataObjects = new Map();  //Maps file name/path to its master metadata
-var dataNodes = new Map(); //Maps each data node ID to its Node metadata
-debug('Master node\n');
-
-var pubsub = new things.Pubsub(pubsubURL);
 
 //One object per file will be created by the Master node.
 var MasterMetadata = function(fileName){
@@ -75,8 +67,44 @@ Node.prototype.removeFile = function(file)
     this.files.splice(indexOf(file), 1);
 }
 
-function handshakeClient(message){
+function Master(pubsubURL){
 
+    var self = this;
+    this.pubsub = new things.Pubsub(pubsubURL);
+    this.masterMetadataObjects = new Map();  //Maps file name/path to its master metadata
+    this.dataNodes = new Map(); //Maps each data node ID to its Node metadata
+
+    setInterval(function(){
+        //debug('STARTING HEARTBEAT INTERVAL')
+        var currentTime = (new Date()).getTime() / 1000;
+    
+        self.dataNodes.forEach(function(value, key) {
+            if (value.available == true)
+            {
+                if( (currentTime - value.timeStamp) > 5)  //We have not heard from that node in 5 seconds
+                {
+                    value.available = false; // Mark as unavailable
+                    self.dataNodes.set(key, value);
+                    self.replicate(key, value.files);
+                    debug('Node has been marked unavailable: ', key)
+                }
+            }
+    
+          });
+    
+    }, 5000);
+
+    debug("Pubsub connected");
+    self.pubsub.subscribe('nodeHandshake', function(message){self.handshakeClient(message)});
+    self.pubsub.subscribe('metadata', function(metadataRequest){self.sendMetadata(metadataRequest)});
+    self.pubsub.subscribe('heartbeat', function(message){self.processHeartbeat(message)});
+
+    debug('Master node\n');
+}
+
+Master.prototype.handshakeClient = function(message){
+
+    var self = this;
     debug('handshakeClientEntry');
     var newNode = new Node(message.id);
 
@@ -87,7 +115,7 @@ function handshakeClient(message){
         var file = message.files[index];
         newNode.addFile(file);
         newNode.timeStamp = (new Date()).getTime() / 1000;
-        var metaEntry = masterMetadataObjects.get(file);
+        var metaEntry = self.masterMetadataObjects.get(file);
 
         if (metaEntry == undefined)
         {
@@ -103,7 +131,7 @@ function handshakeClient(message){
                 metaEntry.setSecondaryNode(message.id)
                 metaEntry.setPrimaryNode(element.concurrentNode)
             }
-            masterMetadataObjects.set(file, metaEntry);
+            self.masterMetadataObjects.set(file, metaEntry);
         }
         else
         {
@@ -122,54 +150,56 @@ function handshakeClient(message){
         }
         
     }
-    dataNodes.set(message.id, newNode);
+    self.dataNodes.set(message.id, newNode);
     
     debug('ADDED NEW NODE', newNode);
 }
 
-function sendMetadata(metadataRequest)
+Master.prototype.sendMetadata = function(metadataRequest)
 {
+    var self = this;
     var response = {};
     var metaEntry;
 
     response.sender = 'master';
     if (metadataRequest.type == 'read')
     {
-        if ( (metaEntry = masterMetadataObjects.get(metadataRequest.file)) != undefined)
+        if ( (metaEntry = self.masterMetadataObjects.get(metadataRequest.file)) != undefined)
         {
             //debug("metaEntry: ", metaEntry);
             response.status = 'success';
             
             response.contactNodeID = metaEntry.secondaryNode;
-            pubsub.publish(metadataRequest.id, response);
+            self.pubsub.publish(metadataRequest.id, response);
             //debug("response: ", response);
         }
     }
     else if ( (metadataRequest.type == 'append') || (metadataRequest.type == 'write'))
     {
-        if ( (metaEntry = masterMetadataObjects.get(metadataRequest.file)) == undefined)
+        if ( (metaEntry = self.masterMetadataObjects.get(metadataRequest.file)) == undefined)
         {
             //New file will be created.
             createNewMetadata(metadataRequest.file)
                 .then(function(metaEntry){
                     //debug('received both acknowledgments for metadata creation');
                     response.contactNodeID = metaEntry.primaryNode; //All appends/writes have to go through primary node
-                    pubsub.publish(metadataRequest.id, response);
+                    self.pubsub.publish(metadataRequest.id, response);
                 })
         }
         else
         {
             response.contactNodeID = metaEntry.primaryNode; //All appends/writes have to go through primary node
-            pubsub.publish(metadataRequest.id, response);
+            self.pubsub.publish(metadataRequest.id, response);
         }
 
     }
 };
 
-function createNewMetadata(newFile)
+Master.prototype.createNewMetadata = function(newFile)
 {
+    var self = this;
     var primaryNode, secondaryNode;
-    var potentialHosts = Array.from(dataNodes.keys());
+    var potentialHosts = Array.from(self.dataNodes.keys());
 
     //select primary node
     primaryNode = potentialHosts[Math.floor(Math.random()*potentialHosts.length)];
@@ -183,16 +213,16 @@ function createNewMetadata(newFile)
     newMetadata.setSecondaryNode(secondaryNode);
 
     //update the master's metadata
-    masterMetadataObjects.set(newFile, newMetadata);
+    self.masterMetadataObjects.set(newFile, newMetadata);
 
-    var primaryNodeMeta = dataNodes.get(newMetadata.primaryNode);
-    var secondaryNodeMeta = dataNodes.get(newMetadata.secondaryNode);
+    var primaryNodeMeta = self.dataNodes.get(newMetadata.primaryNode);
+    var secondaryNodeMeta = self.dataNodes.get(newMetadata.secondaryNode);
 
     primaryNodeMeta.addFile(newFile);
     secondaryNodeMeta.addFile(newFile);
 
-    dataNodes.set(newMetadata.primaryNode, primaryNodeMeta);
-    dataNodes.set(newMetadata.secondaryNode, secondaryNodeMeta);
+    self.dataNodes.set(newMetadata.primaryNode, primaryNodeMeta);
+    self.dataNodes.set(newMetadata.secondaryNode, secondaryNodeMeta);
 
     //notify dataNodes (hosts) to update their metadata. 
     var nodeIds = newMetadata.getAllNodes();
@@ -202,12 +232,12 @@ function createNewMetadata(newFile)
     var acknowledgments = 0;
 
     var promise = new Promise(function(resolve, reject){
-        pubsub.subscribe(requestID, function()
+        self.pubsub.subscribe(requestID, function()
         {
             acknowledgments++;
             if (acknowledgments == nodeIds.length)
             {
-                pubsub.unsubscribe(requestID);
+                self.pubsub.unsubscribe(requestID);
                 resolve(newMetadata);
             }
         })
@@ -215,24 +245,25 @@ function createNewMetadata(newFile)
 
     for (let j = 0; j<nodeIds.length; j++)
     {
-        var tempNode = dataNodes.get(nodeIds[j]);
+        var tempNode = self.dataNodes.get(nodeIds[j]);
         // replicate set to false, as no file copying is needed. This is a newly created file.
         var request = {file: newFile, metadata: newMetadata, type: 'newFile', sender: 'master', id: requestID};
-        pubsub.publish( (tempNode.nodeTopic), request);
+        self.pubsub.publish( (tempNode.nodeTopic), request);
     }
     
     return promise;
 }
 
-function processHeartbeat(message)
+Master.prototype.processHeartbeat = function(message)
 {
+    var self = this;
     
-    var currentNode = dataNodes.get(message.id);
+    var currentNode = self.dataNodes.get(message.id);
     if (currentNode != undefined)
     {
         var date = new Date();
         currentNode.timeStamp = (date.getTime() / 1000);  //Time in seconds.
-        dataNodes.set(message.id, currentNode);
+        self.dataNodes.set(message.id, currentNode);
         debug('processed heartbeat for dataNode: ', message.id, ' at time =', currentNode.timeStamp)
     }
     else
@@ -242,20 +273,16 @@ function processHeartbeat(message)
     
 }
 
-debug("Pubsub connected");
-pubsub.subscribe('nodeHandshake', handshakeClient);
-pubsub.subscribe('metadata', sendMetadata);
-pubsub.subscribe('heartbeat', processHeartbeat);
-
-function replicate(brokenNodeId, files) //nodeId of node to be replicated and the files it has.
+Master.prototype.replicate = function(brokenNodeId, files) //nodeId of node to be replicated and the files it has.
 {
+    var self = this;
     //Remove the broken node from node metadata map.
-    dataNodes.delete(brokenNodeId);
-    //debug('dataNodes map is: ', dataNodes);
+    self.dataNodes.delete(brokenNodeId);
+    
     const len = files.length;
     for (let i=0; i<len; i++)
     {
-        var metadata = masterMetadataObjects.get(files[i]);
+        var metadata = self.masterMetadataObjects.get(files[i]);
         if (metadata == undefined)
         {
             debug(
@@ -266,49 +293,29 @@ function replicate(brokenNodeId, files) //nodeId of node to be replicated and th
             continue;
         }
         // update the metadata of the file and rturn the nodeId for the new replica
-        //Array.from(dataNodes.keys())
-        var newNode = metadata.updateReplicaMetadata(Array.from(dataNodes.keys()), brokenNodeId);
-        masterMetadataObjects.set(files[i], metadata);
+        
+        var newNode = metadata.updateReplicaMetadata(Array.from(self.dataNodes.keys()), brokenNodeId);
+        self.masterMetadataObjects.set(files[i], metadata);
 
         // Update the metadata for the new node that will host the replica
-        var newNodeMetadata = dataNodes.get(newNode);
+        var newNodeMetadata = self.dataNodes.get(newNode);
         //debug('newNodeMetadata VALUE is: ', newNodeMetadata);
         newNodeMetadata.addFile(files[i]);
         //debug('NODE METADATA AFTER ADDFILE: ', newNodeMetadata);
-        dataNodes.set(newNode, newNodeMetadata);
+        self.dataNodes.set(newNode, newNodeMetadata);
         
         //Notify impacted nodes to update their metadata (and replicate file in case of newNode)
         var nodeIds = metadata.getAllNodes();
         for (let j = 0; j<nodeIds.length; j++)
         {
-            var tempNode = dataNodes.get(nodeIds[j]);
+            var tempNode = self.dataNodes.get(nodeIds[j]);
             //create a uuid so that nodes can confirm changes and add 'stable' flag to mastermeta
             var request = {file: files[i], metadata: metadata, type: 'replicate', sender: 'master'}
-            pubsub.publish( (tempNode.nodeTopic), request);
+            self.pubsub.publish( (tempNode.nodeTopic), request);
         }
     }
-    debug('MASTER METADATA after replication is: ', masterMetadataObjects);
+    debug('MASTER METADATA after replication is: ', self.masterMetadataObjects);
 }
-
-setInterval(function(){
-    //debug('STARTING HEARTBEAT INTERVAL')
-    var currentTime = (new Date()).getTime() / 1000;
-
-    dataNodes.forEach(function(value, key) {
-        if (value.available == true)
-        {
-            if( (currentTime - value.timeStamp) > 5)  //We have not heard from that node in 5 seconds
-            {
-                value.available = false; // Mark as unavailable
-                dataNodes.set(key, value);
-                replicate(key, value.files);
-                debug('Node has been marked unavailable: ', key)
-            }
-        }
-
-      });
-
-}, 5000);
 
 function debug(...args)
 {
@@ -325,3 +332,5 @@ function debug(...args)
         console.log(message);
     }  
 }
+
+module.exports = Master;
