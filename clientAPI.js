@@ -1,10 +1,9 @@
 var things = require('things-js');
 const uuidv1 = require('uuid/v1'); //Timestamp
 const display_debug_messages = true;
-function DFS(){
-    this.pubsubURL = process.argv.slice(2)[0]; //'mqtt://localhost'
-    
-    this.pubsub = new things.Pubsub(this.pubsubURL);
+
+function DFS(pubsubURL){    
+    this.pubsub = new things.Pubsub(pubsubURL);
 }
 DFS.prototype.constructor = DFS;
 
