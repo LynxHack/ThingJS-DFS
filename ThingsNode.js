@@ -33,207 +33,205 @@ function ThingsNode(pubsubURL, nodeID, storageDir, fileDir){
                 ++ctr;
                 if (ctr == size)
                 {
-                    resolve(true);
+                    self.pubsub = new things.Pubsub(self.pubsubURL);
+                    var myNodeTopic = "'" + self.id + "'";
+                    debug('subscribing to self id: ', myNodeTopic);
+                    self.pubsub.subscribe(myNodeTopic, async function(request){
+                        debug('handling request: ', request);
+                        if (request.sender == 'master')
+                        {
+                            var myFileMeta = self.fileMeta.get(request.file);
+    
+                            if(myFileMeta != undefined) //we already have that file, just updating metadata
+                            {
+                                var nodePersistRecord = await storage.getItem(request.file);
+                                if(myFileMeta.isPrimaryNode)
+                                {
+                                    // We have been the primary node for that file, just update concurrent node
+                                    myFileMeta.concurrentNode = request.metadata.secondaryNode;
+                                }
+                                else
+                                {
+                                    // we have been a secondary node for this file already, just update pri node
+                                    myFileMeta.concurrentNode = request.metadata.primaryNode;
+                                }
+                                nodePersistRecord.concurrentNodeID = myFileMeta.concurrentNodeID;
+                                await storage.setItem(request.file, nodePersistRecord);
+                            }
+                            else
+                            {
+                                // We did not have that file, create metadata and copy file if required
+                                var isPrimaryNode, concurrentNode, location; 
+                                location = self.fileDir + request.file + ".txt";
+                                if (self.id == request.metadata.primaryNode)
+                                {
+                                    isPrimaryNode = true;
+                                    concurrentNode = request.metadata.secondaryNode;
+                                }
+                                else
+                                {
+                                    isPrimaryNode = false;
+                                    concurrentNode = request.metadata.primaryNode;
+                                }
+                                // request to copy file only if this is a replication process.
+                                if (request.type == 'replicate')
+                                {
+                                    var copyRequest = 
+                                    {sender: 'dataNode', type: 'copyRequest', file: request.file, id: self.id};
+                                    var contactNodeTopic = "'" + concurrentNode + "'";
+                                    self.pubsub.publish(contactNodeTopic, copyRequest);
+                                }
+    
+                                var myFileMeta = 
+                                    new FileMetadata(self.pubsub, self.id, location, isPrimaryNode, concurrentNode);
+                                await storage.setItem(
+                                    request.file,
+                                    {location: location, 
+                                    primaryNode: isPrimaryNode, 
+                                    concurrentNodeID : concurrentNode });
+                                if (request.type == 'newFile')
+                                {
+                                    // Acknowledge to master that metadata has been created.
+                                    self.pubsub.publish(request.id, 'metadataCreated');
+                                }
+                            }
+                            self.fileMeta.set(request.file, myFileMeta);
+                            debug("updated metadata: ", myFileMeta);
+                        }
+                        else if (request.sender == 'clientAPI')
+                        {
+                            if ( (fileMetadata = self.fileMeta.get(request.file)) != undefined )
+                            {
+                                if (request.type == 'read')
+                                {
+                                    var cachedReplica = self.cachedFiles.getCachedFile(request.file);
+                                    if (cachedReplica != null)
+                                    {
+                                        var myResponse = {sender: 'dataNode', err: null, data: cachedReplica};
+                                        self.pubsub.publish(request.id, myResponse);
+                                        
+                                    }
+                                    else{
+                                        fs.readFile(fileMetadata.location, function(err, data){
+                                            // verify file integrity by recalculating checksum.
+                                            if (calculateDataChecksum(data) == fileMetadata.checksum)
+                                            {
+                                                // Data integrity verified.
+                                                var myResponse = {sender: 'dataNode', err: err, data: data.toString()};
+                                                self.pubsub.publish(request.id, myResponse);
+                                                self.cachedFiles.cacheFile(request.file, data.toString());
+                                            }
+                                            else
+                                            {
+                                                debug('Local file is corrupted, copying a valid replica');
+                                                
+                                                // Our copy is corrupted, contact concurrent node to get a correct copy.
+                                                var copyRequest = 
+                                                    {sender: 'dataNode', type: 'copyRequest', file: request.file, id: self.id};
+                                                debug('copy request: ', copyRequest);
+                                                var contactNodeTopic = "'" + fileMetadata.concurrentNode + "'";
+                                                self.pubsub.publish(contactNodeTopic, copyRequest);
+        
+                                                // Ask client to try the concurrent Node instead.
+                                                var myResponse = 
+                                                    {sender: 'dataNode', status: 'alternativeNode', altNodeID: fileMetadata.concurrentNode};
+                                                    self.pubsub.publish(request.id, myResponse);
+                                            }
+                                            
+                                        })
+                                    }
+    
+                                }
+                                else if ( (request.type == 'append') || (request.type == 'write'))
+                                {
+                                    self.cachedFiles.invalidateCache(request.file);
+                                    fileMetadata.addRequestTOQueue(request);
+                                }
+                            } 
+                        }
+                        else if (request.sender == 'dataNode')
+                        {
+                            if (request.type == 'copyRequest')
+                            {
+                                debug('dataNode copy request received ', request);
+                                var requestedFileMeta = self.fileMeta.get(request.file);
+                                var requestedFileLocation = requestedFileMeta.location;
+                                fs.readFile(requestedFileLocation, function(err, data){
+                                    var copyResponse = 
+                                    {sender: 'dataNode', type: 'copyResponse', err:err, data: data, file: request.file};
+                                    var resNodeTopic = "'" + request.id + "'"; 
+                                    self.pubsub.publish(resNodeTopic, copyResponse);
+                                })
+                            }
+                            else if (request.type == 'copyResponse')
+                            {
+                                debug('dataNode copyResponse received ', request);
+                                var tempFileMeta = self.fileMeta.get(request.file);
+                                var tempLocation = tempFileMeta.location;
+                                
+                                fs.writeFile(tempLocation, 
+                                    String.fromCharCode.apply(String, request.data.data).replace(/\0/g,''), 
+                                    function(err){
+                                        if (err) console.log("ERROR on copyResponse: ", err);
+                                        tempFileMeta.updateChecksum('write', request.data.data);
+                                })
+                                
+                            
+                            }
+                            else if (request.type == 'replicateAppend')
+                            {
+                                self.cachedFiles.invalidateCache(request.file);
+                                var tempFileMeta = self.fileMeta.get(request.file);
+                                fs.appendFile(tempFileMeta.location, request.data, function(err){
+                                    if (err)
+                                    {
+                                        console.log('ERROR on replicate Append');
+                                    } 
+                                    else 
+                                    {
+                                        tempFileMeta.updateChecksum('append', request.data);
+                                    }
+                                    self.pubsub.publish(request.id, err);
+    
+                                })
+                            }
+    
+                            else if (request.type == 'replicateWrite')
+                            {
+                                self.cachedFiles.invalidateCache(request.file);
+                                var tempFileMeta = self.fileMeta.get(request.file);
+                                fs.writeFile(tempFileMeta.location, request.data, function(err){
+                                    if (err)
+                                    {
+                                        console.log('ERROR on replicate Append');
+                                    } 
+                                    else 
+                                    {
+                                        tempFileMeta.updateChecksum('write', request.data);
+                                    }
+                                    self.pubsub.publish(request.id, err);
+    
+                                })
+    
+                            }
+                        }
+                    }).then(function(topic){
+                        debug('subscribed to topic: ', topic);
+                    })
+    
+                    var myMetadata = {id: self.id, files: Array.from(self.fileMeta.keys()), metadata: Array.from(self.fileMeta.values())};
+                    self.pubsub.publish('nodeHandshake', myMetadata).then(function(){
+                        resolve(true);
+                        //heartbeat Interval
+                        setInterval(function(){
+                            self.pubsub.publish('heartbeat', {id: self.id});
+                        }, 3000)
+                    })      
                 }
             });
             
         });
-    }).then(function(val){
-                self.pubsub = new things.Pubsub(self.pubsubURL);
-                var myNodeTopic = "'" + self.id + "'";
-                debug('subscribing to self id: ', myNodeTopic);
-                self.pubsub.subscribe(myNodeTopic, async function(request){
-                    debug('handling request: ', request);
-                    if (request.sender == 'master')
-                    {
-                        var myFileMeta = self.fileMeta.get(request.file);
-
-                        if(myFileMeta != undefined) //we already have that file, just updating metadata
-                        {
-                            var nodePersistRecord = await storage.getItem(request.file);
-                            if(myFileMeta.isPrimaryNode)
-                            {
-                                // We have been the primary node for that file, just update concurrent node
-                                myFileMeta.concurrentNode = request.metadata.secondaryNode;
-                            }
-                            else
-                            {
-                                // we have been a secondary node for this file already, just update pri node
-                                myFileMeta.concurrentNode = request.metadata.primaryNode;
-                            }
-                            nodePersistRecord.concurrentNodeID = myFileMeta.concurrentNodeID;
-                            await storage.setItem(request.file, nodePersistRecord);
-                        }
-                        else
-                        {
-                            // We did not have that file, create metadata and copy file if required
-                            var isPrimaryNode, concurrentNode, location; 
-                            location = self.fileDir + request.file + ".txt";
-                            if (self.id == request.metadata.primaryNode)
-                            {
-                                isPrimaryNode = true;
-                                concurrentNode = request.metadata.secondaryNode;
-                            }
-                            else
-                            {
-                                isPrimaryNode = false;
-                                concurrentNode = request.metadata.primaryNode;
-                            }
-                            // request to copy file only if this is a replication process.
-                            if (request.type == 'replicate')
-                            {
-                                var copyRequest = 
-                                {sender: 'dataNode', type: 'copyRequest', file: request.file, id: self.id};
-                                var contactNodeTopic = "'" + concurrentNode + "'";
-                                self.pubsub.publish(contactNodeTopic, copyRequest);
-                            }
-
-                            var myFileMeta = 
-                                new FileMetadata(self.pubsub, self.id, location, isPrimaryNode, concurrentNode);
-                            await storage.setItem(
-                                request.file,
-                                {location: location, 
-                                primaryNode: isPrimaryNode, 
-                                concurrentNodeID : concurrentNode });
-                            if (request.type == 'newFile')
-                            {
-                                // Acknowledge to master that metadata has been created.
-                                self.pubsub.publish(request.id, 'metadataCreated');
-                            }
-                        }
-                        self.fileMeta.set(request.file, myFileMeta);
-                        debug("updated metadata: ", myFileMeta);
-                    }
-                    else if (request.sender == 'clientAPI')
-                    {
-                        if ( (fileMetadata = self.fileMeta.get(request.file)) != undefined )
-                        {
-                            if (request.type == 'read')
-                            {
-                                var cachedReplica = self.cachedFiles.getCachedFile(request.file);
-                                if (cachedReplica != null)
-                                {
-                                    var myResponse = {sender: 'dataNode', err: null, data: cachedReplica};
-                                    self.pubsub.publish(request.id, myResponse);
-                                    
-                                }
-                                else{
-                                    fs.readFile(fileMetadata.location, function(err, data){
-                                        // verify file integrity by recalculating checksum.
-                                        if (calculateDataChecksum(data) == fileMetadata.checksum)
-                                        {
-                                            // Data integrity verified.
-                                            var myResponse = {sender: 'dataNode', err: err, data: data.toString()};
-                                            self.pubsub.publish(request.id, myResponse);
-                                            self.cachedFiles.cacheFile(request.file, data.toString());
-                                        }
-                                        else
-                                        {
-                                            debug('Local file is corrupted, copying a valid replica');
-                                            
-                                            // Our copy is corrupted, contact concurrent node to get a correct copy.
-                                            var copyRequest = 
-                                                {sender: 'dataNode', type: 'copyRequest', file: request.file, id: self.id};
-                                            debug('copy request: ', copyRequest);
-                                            var contactNodeTopic = "'" + fileMetadata.concurrentNode + "'";
-                                            self.pubsub.publish(contactNodeTopic, copyRequest);
-    
-                                            // Ask client to try the concurrent Node instead.
-                                            var myResponse = 
-                                                {sender: 'dataNode', status: 'alternativeNode', altNodeID: fileMetadata.concurrentNode};
-                                                self.pubsub.publish(request.id, myResponse);
-                                        }
-                                        
-                                    })
-                                }
-
-                            }
-                            else if ( (request.type == 'append') || (request.type == 'write'))
-                            {
-                                self.cachedFiles.invalidateCache(request.file);
-                                fileMetadata.addRequestTOQueue(request);
-                            }
-                        } 
-                    }
-                    else if (request.sender == 'dataNode')
-                    {
-                        if (request.type == 'copyRequest')
-                        {
-                            debug('dataNode copy request received ', request);
-                            var requestedFileMeta = self.fileMeta.get(request.file);
-                            var requestedFileLocation = requestedFileMeta.location;
-                            fs.readFile(requestedFileLocation, function(err, data){
-                                var copyResponse = 
-                                {sender: 'dataNode', type: 'copyResponse', err:err, data: data, file: request.file};
-                                var resNodeTopic = "'" + request.id + "'"; 
-                                self.pubsub.publish(resNodeTopic, copyResponse);
-                            })
-                        }
-                        else if (request.type == 'copyResponse')
-                        {
-                            debug('dataNode copyResponse received ', request);
-                            var tempFileMeta = self.fileMeta.get(request.file);
-                            var tempLocation = tempFileMeta.location;
-                            
-                            fs.writeFile(tempLocation, 
-                                String.fromCharCode.apply(String, request.data.data).replace(/\0/g,''), 
-                                function(err){
-                                    if (err) console.log("ERROR on copyResponse: ", err);
-                                    tempFileMeta.updateChecksum('write', request.data.data);
-                            })
-                            
-                        
-                        }
-                        else if (request.type == 'replicateAppend')
-                        {
-                            self.cachedFiles.invalidateCache(request.file);
-                            var tempFileMeta = self.fileMeta.get(request.file);
-                            fs.appendFile(tempFileMeta.location, request.data, function(err){
-                                if (err)
-                                {
-                                    console.log('ERROR on replicate Append');
-                                } 
-                                else 
-                                {
-                                    tempFileMeta.updateChecksum('append', request.data);
-                                }
-                                self.pubsub.publish(request.id, err);
-
-                            })
-                        }
-
-                        else if (request.type == 'replicateWrite')
-                        {
-                            self.cachedFiles.invalidateCache(request.file);
-                            var tempFileMeta = self.fileMeta.get(request.file);
-                            fs.writeFile(tempFileMeta.location, request.data, function(err){
-                                if (err)
-                                {
-                                    console.log('ERROR on replicate Append');
-                                } 
-                                else 
-                                {
-                                    tempFileMeta.updateChecksum('write', request.data);
-                                }
-                                self.pubsub.publish(request.id, err);
-
-                            })
-
-                        }
-                    }
-                }).then(function(topic){
-                    debug('subscribed to topic: ', topic);
-                })
-
-                var myMetadata = {id: self.id, files: Array.from(self.fileMeta.keys()), metadata: Array.from(self.fileMeta.values())};
-                self.pubsub.publish('nodeHandshake', myMetadata).then(function(){
-                    //heartbeat Interval
-                    setInterval(function(){
-                        self.pubsub.publish('heartbeat', {id: self.id});
-                    }, 3000)
-                })    
-            
-            });
+    })           
 };
 ThingsNode.prototype.constructor = ThingsNode;
 
