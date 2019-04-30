@@ -169,7 +169,7 @@ Master.prototype.sendMetadata = function(metadataRequest)
             //debug("metaEntry: ", metaEntry);
             response.status = 'success';
             
-            response.contactNodeID = metaEntry.secondaryNode;
+            response.contactNodeID = metaEntry.primaryNode;
             self.pubsub.publish(metadataRequest.id, response);
             //debug("response: ", response);
         }
@@ -179,7 +179,7 @@ Master.prototype.sendMetadata = function(metadataRequest)
         if ( (metaEntry = self.masterMetadataObjects.get(metadataRequest.file)) == undefined)
         {
             //New file will be created.
-            createNewMetadata(metadataRequest.file)
+            self.createNewMetadata(metadataRequest.file)
                 .then(function(metaEntry){
                     //debug('received both acknowledgments for metadata creation');
                     response.contactNodeID = metaEntry.primaryNode; //All appends/writes have to go through primary node
