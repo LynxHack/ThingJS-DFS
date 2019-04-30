@@ -169,7 +169,7 @@ Master.prototype.sendMetadata = function(metadataRequest)
             //debug("metaEntry: ", metaEntry);
             response.status = 'success';
             
-            response.contactNodeID = metaEntry.primaryNode;
+            response.contactNodeID = metaEntry.secondaryNode;
             self.pubsub.publish(metadataRequest.id, response);
             //debug("response: ", response);
         }
