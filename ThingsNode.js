@@ -34,10 +34,10 @@ function ThingsNode(pubsubURL, nodeID, storageDir, fileDir){
                 ++ctr;
                 if (ctr == size)
                 {
-                    self.pubsub = new things.Pubsub(self.pubsubURL);
+                    pubsub = new things.Pubsub(self.pubsubURL);
                     var myNodeTopic = "'" + self.id + "'";
                     debug('subscribing to self id: ', myNodeTopic);
-                    self.pubsub.subscribe(myNodeTopic, async function(request){
+                    pubsub.subscribe(myNodeTopic, async function(request){
                         debug('handling request: ', request);
                         if (request.sender == 'master')
                         {
@@ -80,11 +80,11 @@ function ThingsNode(pubsubURL, nodeID, storageDir, fileDir){
                                     var copyRequest = 
                                     {sender: 'dataNode', type: 'copyRequest', file: request.file, id: self.id};
                                     var contactNodeTopic = "'" + concurrentNode + "'";
-                                    self.pubsub.publish(contactNodeTopic, copyRequest);
+                                    pubsub.publish(contactNodeTopic, copyRequest);
                                 }
     
                                 var myFileMeta = 
-                                    new FileMetadata(self.pubsub, self.id, location, isPrimaryNode, concurrentNode);
+                                    new FileMetadata(self.id, location, isPrimaryNode, concurrentNode);
                                 await self.storage.setItem(
                                     request.file,
                                     {location: location, 
@@ -93,7 +93,7 @@ function ThingsNode(pubsubURL, nodeID, storageDir, fileDir){
                                 if (request.type == 'newFile')
                                 {
                                     // Acknowledge to master that metadata has been created.
-                                    self.pubsub.publish(request.id, 'metadataCreated');
+                                    pubsub.publish(request.id, 'metadataCreated');
                                 }
                             }
                             self.fileMeta.set(request.file, myFileMeta);
@@ -109,7 +109,7 @@ function ThingsNode(pubsubURL, nodeID, storageDir, fileDir){
                                     if (cachedReplica != null)
                                     {
                                         var myResponse = {sender: 'dataNode', err: null, data: cachedReplica};
-                                        self.pubsub.publish(request.id, myResponse);
+                                        pubsub.publish(request.id, myResponse);
                                         
                                     }
                                     else{
@@ -119,7 +119,7 @@ function ThingsNode(pubsubURL, nodeID, storageDir, fileDir){
                                             {
                                                 // Data integrity verified.
                                                 var myResponse = {sender: 'dataNode', err: err, data: data.toString()};
-                                                self.pubsub.publish(request.id, myResponse);
+                                                pubsub.publish(request.id, myResponse);
                                                 self.cachedFiles.cacheFile(request.file, data.toString());
                                             }
                                             else
@@ -131,12 +131,12 @@ function ThingsNode(pubsubURL, nodeID, storageDir, fileDir){
                                                     {sender: 'dataNode', type: 'copyRequest', file: request.file, id: self.id};
                                                 debug('copy request: ', copyRequest);
                                                 var contactNodeTopic = "'" + fileMetadata.concurrentNode + "'";
-                                                self.pubsub.publish(contactNodeTopic, copyRequest);
+                                                pubsub.publish(contactNodeTopic, copyRequest);
         
                                                 // Ask client to try the concurrent Node instead.
                                                 var myResponse = 
                                                     {sender: 'dataNode', status: 'alternativeNode', altNodeID: fileMetadata.concurrentNode};
-                                                    self.pubsub.publish(request.id, myResponse);
+                                                    pubsub.publish(request.id, myResponse);
                                             }
                                             
                                         })
@@ -161,7 +161,7 @@ function ThingsNode(pubsubURL, nodeID, storageDir, fileDir){
                                     var copyResponse = 
                                     {sender: 'dataNode', type: 'copyResponse', err:err, data: data, file: request.file};
                                     var resNodeTopic = "'" + request.id + "'"; 
-                                    self.pubsub.publish(resNodeTopic, copyResponse);
+                                    pubsub.publish(resNodeTopic, copyResponse);
                                 })
                             }
                             else if (request.type == 'copyResponse')
@@ -192,7 +192,7 @@ function ThingsNode(pubsubURL, nodeID, storageDir, fileDir){
                                     {
                                         tempFileMeta.updateChecksum('append', request.data);
                                     }
-                                    self.pubsub.publish(request.id, err);
+                                    pubsub.publish(request.id, err);
     
                                 })
                             }
@@ -210,7 +210,7 @@ function ThingsNode(pubsubURL, nodeID, storageDir, fileDir){
                                     {
                                         tempFileMeta.updateChecksum('write', request.data);
                                     }
-                                    self.pubsub.publish(request.id, err);
+                                    pubsub.publish(request.id, err);
     
                                 })
     
@@ -221,11 +221,11 @@ function ThingsNode(pubsubURL, nodeID, storageDir, fileDir){
                     })
     
                     var myMetadata = {id: self.id, files: Array.from(self.fileMeta.keys()), metadata: Array.from(self.fileMeta.values())};
-                    self.pubsub.publish('nodeHandshake', myMetadata).then(function(){
+                    pubsub.publish('nodeHandshake', myMetadata).then(function(){
                         resolve(true);
                         //heartbeat Interval
                         setInterval(function(){
-                            self.pubsub.publish('heartbeat', {id: self.id});
+                            pubsub.publish('heartbeat', {id: self.id});
                         }, 3000)
                     })      
                 }
@@ -241,18 +241,17 @@ ThingsNode.prototype.parseMetadata = function(pair){
     var isPrimaryNode = pair.value.primaryNode;
     var concurrentNodeID = pair.value.concurrentNodeID;
 
-    var newMetadata = new FileMetadata(this.pubsub, this.id, location, isPrimaryNode, concurrentNodeID);
+    var newMetadata = new FileMetadata(this.id, location, isPrimaryNode, concurrentNodeID);
     newMetadata.calculateInitialChecksum();
     return newMetadata;
 }
 
-function FileMetadata(pubsub, id, location, isPrimaryNode=true, concurrentNode=null){
+function FileMetadata(id, location, isPrimaryNode=true, concurrentNode=null){
     this.id = id;  //device ID, also to be used as pubsub topic to communicate with that device
     this.isPrimaryNode = isPrimaryNode;  //by default the object is for a primary node record
     this.concurrentNode = concurrentNode;
     this.location = location;
     this.checksum = 0;
-    this.pubsub = pubsub;
     this.queue = [];
 }
 
@@ -316,10 +315,10 @@ FileMetadata.prototype.next = function()
                 self.updateChecksum('append', tempRequest.data);
                 // Forward the request to secondary node, wait for acknowledgment
                 var requestID = uuidv1();
-                self.pubsub.subscribe(requestID, function(response){
+                pubsub.subscribe(requestID, function(response){
                     var myResponse = {sender: 'dataNode', err: err};
-                    self.pubsub.publish(tempRequest.id, myResponse);
-                    self.pubsub.unsubscribe(requestID);
+                    pubsub.publish(tempRequest.id, myResponse);
+                    pubsub.unsubscribe(requestID);
                 })
                     .then(function(topic){
                         if (topic != requestID)
@@ -336,7 +335,7 @@ FileMetadata.prototype.next = function()
                             type: 'replicateAppend'};
         
                         var concurrentNodeTopic = "'" + self.concurrentNode + "'";
-                        self.pubsub.publish(concurrentNodeTopic, replicateAppendRequest)
+                        pubsub.publish(concurrentNodeTopic, replicateAppendRequest)
                     })
                 self.queue.shift();
                 if(self.queue.length > 0)
@@ -358,10 +357,10 @@ FileMetadata.prototype.next = function()
                 self.updateChecksum('write', tempRequest.data);
                 // Forward the request to secondary node, wait for acknowledgment
                 var requestID = uuidv1();
-                self.pubsub.subscribe(requestID, function(response){
+                pubsub.subscribe(requestID, function(response){
                     var myResponse = {sender: 'dataNode', err: err};
-                    self.pubsub.publish(tempRequest.id, myResponse);
-                    self.pubsub.unsubscribe(requestID);
+                    pubsub.publish(tempRequest.id, myResponse);
+                    pubsub.unsubscribe(requestID);
                 })
                     .then(function(topic){
                         if (topic != requestID)
@@ -378,7 +377,7 @@ FileMetadata.prototype.next = function()
                             type: 'replicateWrite'};
         
                         var concurrentNodeTopic = "'" + self.concurrentNode + "'";
-                        self.pubsub.publish(concurrentNodeTopic, replicateWriteRequest)
+                        pubsub.publish(concurrentNodeTopic, replicateWriteRequest)
                     })
                 self.queue.shift();
                 if(self.queue.length > 0)
