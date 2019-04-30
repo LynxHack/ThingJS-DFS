@@ -1,4 +1,4 @@
-var storage = require('node-persist');
+var _storage = require('node-persist');
 var things = require('things-js');
 var fs = require('fs');
 const uuidv1 = require('uuid/v1');
@@ -19,15 +19,16 @@ function ThingsNode(pubsubURL, nodeID, storageDir, fileDir){
     var self = this;
     this.metadata = [];
     this.cachedFiles = new Cache();
+    this.storage = _storage.create({dir: self.persistDir})
 
     return new Promise(function(resolve, reject){
-        storage.init({dir: self.persistDir}).then( async function(val)
+        self.storage.init({dir: self.persistDir}).then( async function(val)
         {
             debug('storage initialized successfully');
 
-            var size = await storage.length();
+            var size = await self.storage.length();
             var ctr = 0;
-            storage.forEach(function(pair){
+            self.storage.forEach(function(pair){
                 //key is file virtual path (name)
                 self.fileMeta.set(pair.key, self.parseMetadata(pair));
                 ++ctr;
@@ -44,7 +45,7 @@ function ThingsNode(pubsubURL, nodeID, storageDir, fileDir){
     
                             if(myFileMeta != undefined) //we already have that file, just updating metadata
                             {
-                                var nodePersistRecord = await storage.getItem(request.file);
+                                var nodePersistRecord = await self.storage.getItem(request.file);
                                 if(myFileMeta.isPrimaryNode)
                                 {
                                     // We have been the primary node for that file, just update concurrent node
@@ -56,7 +57,7 @@ function ThingsNode(pubsubURL, nodeID, storageDir, fileDir){
                                     myFileMeta.concurrentNode = request.metadata.primaryNode;
                                 }
                                 nodePersistRecord.concurrentNodeID = myFileMeta.concurrentNodeID;
-                                await storage.setItem(request.file, nodePersistRecord);
+                                await self.storage.setItem(request.file, nodePersistRecord);
                             }
                             else
                             {
@@ -84,7 +85,7 @@ function ThingsNode(pubsubURL, nodeID, storageDir, fileDir){
     
                                 var myFileMeta = 
                                     new FileMetadata(self.pubsub, self.id, location, isPrimaryNode, concurrentNode);
-                                await storage.setItem(
+                                await self.storage.setItem(
                                     request.file,
                                     {location: location, 
                                     primaryNode: isPrimaryNode, 
