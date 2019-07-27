@@ -1,0 +1,24 @@
+{
+  "name": "dfs",
+  "version": "1.0.0",
+  "description": "",
+  "main": "Master.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/LynxHack/Distributed-File-System.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/LynxHack/Distributed-File-System/issues"
+  },
+  "homepage": "https://github.com/LynxHack/Distributed-File-System#readme",
+  "dependencies": {
+    "node-persist": "^3.0.5",
+    "uuid": "^3.3.2"
+  }
+}
