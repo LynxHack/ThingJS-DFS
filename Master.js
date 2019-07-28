@@ -1,3 +1,5 @@
+"use strict";
+
 var things = require('things-js');
 const uuidv1 = require('uuid/v1');
 
