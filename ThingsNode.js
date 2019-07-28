@@ -1,7 +1,10 @@
+"use strict";
+
 var _storage = require('node-persist');
 var things = require('things-js');
 var fs = require('fs');
 const uuidv1 = require('uuid/v1');
+
 
 export default class ThingsNode{
     constructor(pubsubURL, nodeID, storageDir, fileDir){
@@ -9,7 +12,7 @@ export default class ThingsNode{
         this.nodeID = nodeID;
         this.storageDir = storageDir;
         this.fileDir = fileDir;
-
+        this.initialize(this.pubsub);
     }
 
     async initialize(pubsub){
