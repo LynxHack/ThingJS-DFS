@@ -1,0 +1,24 @@
+ssh -D1080 -L1706:service:1706 -L1711:service:1711 -X h2r0b@ssh.ece.ubc.ca
+
+SSH for getting into Raspberry Pi:
+
+1. First SSH into ECE server
+
+2. From ECE shell:
+ssh pi@137.82.252.108
+
+password: sm@rtJsP1
+
+3. From Gateway Pi at 137.82.252.108:
+ssh pi@192.168.50.1NN
+
+where N is the index of the Pi (01~12)
+
+Super_bananaC'monbaby
+
+
+ssh -D1080 -L1706:service:1706 -L1711:service:1711 -X h2r0b@ssh.ece.ubc.ca 
+&& Super_bananaC'monbaby
+&& ssh pi@137.82.252.108
+&& sm@rtJsP1
+&& ssh pi@192.168.50.103
