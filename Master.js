@@ -11,14 +11,13 @@ export default class Master{
         this.initialize(this.pubsub);
     }
 
-    async initialize(pubsub){
+    initialize(pubsub){
         this.pubsub.subscribe('init', (req) => {
             console.log(req);
-            console.log("master subscribed to init channel")
+            console.log("received an incoming request from a slave node");
         });
-
-        this.pubsub.subscribe('heartbeat', (req) => {
-            self.processHeartbeat(message)
-        });
+        // this.pubsub.subscribe('heartbeat', (req) => {
+        //     self.processHeartbeat(message)
+        // });
     }
 }
