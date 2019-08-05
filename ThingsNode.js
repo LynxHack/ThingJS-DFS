@@ -11,18 +11,31 @@ class ThingsNode{
         this.fileDir;
         this.initialize(this.pubsub);
     }
-
+ 
+    // init connection with Master
     initialize(pubsub){
         //connect to thing-js pubsub
         pubsub.subscribe("init", (req) => {
-            console.log(req);
-            console.log("slave subscribed to init channel");
-        });
+            if(req.sender === "master"){
+                this.nodeID = req.nodeID;
+            }
+        }).then("subscribed to pubsub");
 
+        //Make first publication to master
         pubsub.publish("init", {
-            sender: this.nodeID, //not yet initialized
+            sender: 'newnode', //not yet initialized
             message: 'Request Connection'
         })
+
+        pubsub.subscribe("heartbeat", (req) => {
+            if(req.sender === "master"){
+                // respond back right away to indicate still alive
+                pubsub.publish("heartbeat", {
+                    sender: this.nodeID,
+                    message: 'Still alive'
+                })
+            }
+        });
     }
 }
 
