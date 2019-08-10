@@ -22,3 +22,5 @@ ssh -D1080 -L1706:service:1706 -L1711:service:1711 -X h2r0b@ssh.ece.ubc.ca
 && ssh pi@137.82.252.108
 && sm@rtJsP1
 && ssh pi@192.168.50.103
+
+thing-js pubsub

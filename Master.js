@@ -11,9 +11,9 @@ class Master{
     }
 
     init_master(pubsub){
-        this.init_master_handshake(pubsub);
-        this.init_master_filestore(pubsub);
-        this.init_master_heartbeat(pubsub);
+        await this.init_master_handshake(pubsub);
+        await this.init_master_filestore(pubsub);
+        await this.init_master_heartbeat(pubsub);
     }
     
     init_master_handshake(pubsub){
@@ -27,6 +27,7 @@ class Master{
                 });
             }).then((topic) => { 
                 console.log(`subscribed to ${topic}`)
+                resolve("success");
             });
         });
     }
@@ -34,17 +35,31 @@ class Master{
     // Initialize channel for filestorage comm
     init_master_filestore(pubsub){
         // TODO subscribe to file storage
+        return new Promise((resolve, reject) => {
+            pubsub.subscribe("store", (req) => {
+                // listen to incoming message for whether action is successfull
+            }).then((topic) => {
+                console.log(`subscribed to ${topic}`)
+                resolve("success")
+            })
+        })
     }
 
     // Initializes heartbeat
     init_master_heartbeat(pubsub){
-        pubsub.subscribe('heartbeat', (req) => {
-            var nodeID = req.sender;
-            if(this.alivelist[nodeID]){
-                alivelist[nodeID] = true;
-            }
-        }).then(checknodes()); //start checking nodes once master is successfully set up with heartbeat subscription
-    }
+        return new Promise((resolve, reject) => {
+            pubsub.subscribe('heartbeat', (req) => {
+                        var nodeID = req.sender;
+                        if(this.alivelist[nodeID]){
+                            alivelist[nodeID] = true;
+                        }
+                    }).then((topic) => {
+                        console.log(`subscribed to ${topic}`)
+                        checknodes(); 
+                        resolve("success")
+                    })
+            });
+        }
 
     // Function checks nodes in 4 second intervals
     // Set infinite loop of 4 second heartbeat monitoring of nodes
@@ -64,7 +79,6 @@ class Master{
                 sender: "master",
                 message: "Are you alive"
             })
-
             checknodes();
         }, 4000);
     }
