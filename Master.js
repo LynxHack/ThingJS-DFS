@@ -25,7 +25,6 @@ class Master{
         });
     }
 
-
     // Heartbeats code
     initheartbeat(){
         this.pubsub.subscribe('heartbeat', (req) => {
@@ -36,26 +35,25 @@ class Master{
         }).then(checknodes()); //start checking nodes once master is successfully set up with heartbeat subscription
     }
 
+
+    // Set infinite loop of 4 second heartbeat monitoring of nodes
     checknodes(){
-        while(true){
+        var deadnodes = [];
+        for(node in this.alivelist){ 
+            if(!this.alivelist[node]){
+                deadnodes.push(node);
+            }
+        }
+        setTimeout(function () {
             for (node in this.alivelist){ this.alivelist[node] = false; } //initiate all to false
             this.pubsub.publish('heartbeat', {
                 sender: "master",
                 message: "Are you alive"
             })
 
-            // Kill nodes that have not responded within 4 seconds
-            setTimeout(4000, () => {
-                var deadnodes = [];
-                for(node in this.alivelist){ 
-                    if(!this.alivelist[node]){
-                        deadnodes.push(node);
-                    }
-                }
-            });
-        }
+            checknodes();
+        }, 4000);
     }
-
 }
 
 module.exports = Master;
