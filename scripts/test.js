@@ -11,6 +11,6 @@
 //      console.log(err, data);
 //});
 //
-var ThingsNode = require('./ThingsNode');
+var ThingsNode = require('../ThingsNode');
 
 var node = new ThingsNode('mqtt://192.168.50.101', '2', 'storage', 'replicas');
