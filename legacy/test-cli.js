@@ -1,4 +1,4 @@
-const DFS = require('./clientAPI.js');
+const DFS = require('./clientAPI.js/index.js');
 
 let dfs = new DFS('mqtt://192.168.50.101');
 
