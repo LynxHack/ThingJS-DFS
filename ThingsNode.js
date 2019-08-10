@@ -1,15 +1,14 @@
-const _storage = require('node-persist');
-const uuidv1 = require('uuid/v1');
+const dbs_store = require('./dbs_store');
 const things = require('things-js');
-const fs = require('fs');
-
-
 class ThingsNode{
     constructor(pubsubURL){
         this.pubsub = new things.Pubsub(pubsubURL);
         this.nodeID;
-        this.storageDir;
-        this.fileDir;
+        this.storageDir; //TODO
+        this.fileDir; //TODO
+
+        this.dfs;
+
         this.init_client(this.pubsub);
     }
  
@@ -17,19 +16,26 @@ class ThingsNode{
     init_client(pubsub){
         this.init_client_handshake(pubsub);
         this.init_client_heartbeat(pubsub);
+        this.init_client_filestorage(pubsub);
     }
 
     init_client_filestorage(pubsub){
-        //TODO - Subscribe to file storage channel
+        this.dfs = new dbs_store();
         pubsub.subscribe("store", (req) => {
             if(req.sender !== "master"){return;}
-            // TODO do something with the item to store
+            switch(req.action){
+                case "create":
+                    this.dfs.create(req.data); break;
+                case "read":
+                    this.dfs.read(req.data); break;
+                case "update":
+                    this.dfs.update(req.data); break;
+                case "delete":
+                    this.dfs.delete(req.data); break;
+                case "default":
+                    throw new Error("Unknown dfs request");
+            }
         })
-
-
-        //TODO - Set up file storage on this node
-
-        //TODO - add CRUD operations for storage (function modules)
     }
 
     init_client_handshake(pubsub){
