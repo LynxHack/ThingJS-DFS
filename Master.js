@@ -5,14 +5,20 @@ class Master{
     constructor(pubsubURL){
         this.pubsub = new things.Pubsub(pubsubURL);
         this.dataNodes = new Map(); //Maps each data node ID to its Node metadata    
-        this.initialize(this.pubsub);
+        this.init_master(this.pubsub);
 
         this.alivelist = {} //nodeID, bool
     }
- 
-    initialize(){
+
+    init_master(pubsub){
+        this.init_master_handshake(pubsub);
+        this.init_master_filestore(pubsub);
+        this.init_master_heartbeat(pubsub);
+    }
+    
+    init_master_handshake(pubsub){
         return new Promise((resolve, reject) => {
-            this.pubsub.subscribe('init', (req) => {
+            pubsub.subscribe('init', (req) => {
                 var newid = uuidv1();
                 this.pubsub.publish('init', {
                     sender: 'master',
@@ -25,9 +31,14 @@ class Master{
         });
     }
 
-    // Heartbeats code
-    initheartbeat(){
-        this.pubsub.subscribe('heartbeat', (req) => {
+    // Initialize channel for filestorage comm
+    init_master_filestore(pubsub){
+        // TODO subscribe to file storage
+    }
+
+    // Initializes heartbeat
+    init_master_heartbeat(pubsub){
+        pubsub.subscribe('heartbeat', (req) => {
             var nodeID = req.sender;
             if(this.alivelist[nodeID]){
                 alivelist[nodeID] = true;
@@ -35,7 +46,7 @@ class Master{
         }).then(checknodes()); //start checking nodes once master is successfully set up with heartbeat subscription
     }
 
-
+    // Function checks nodes in 4 second intervals
     // Set infinite loop of 4 second heartbeat monitoring of nodes
     checknodes(){
         var deadnodes = [];
@@ -44,6 +55,9 @@ class Master{
                 deadnodes.push(node);
             }
         }
+        // do something to deadnodes' lost information
+        reduplicate(deadnodes);
+
         setTimeout(function () {
             for (node in this.alivelist){ this.alivelist[node] = false; } //initiate all to false
             this.pubsub.publish('heartbeat', {
@@ -53,6 +67,12 @@ class Master{
 
             checknodes();
         }, 4000);
+    }
+
+    // Takes in a list of nodes that would be dead, and reduplicates
+    // its lost information to another available node
+    reduplicate(nodes){
+        // TODO
     }
 }
 
