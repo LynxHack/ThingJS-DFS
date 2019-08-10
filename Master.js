@@ -4,7 +4,7 @@ const uuidv1 = require('uuid/v1');
 class Master{
     constructor(pubsubURL){
         this.pubsub = new things.Pubsub(pubsubURL);
-        this.dataNodes = new Map(); //Maps each data node ID to its Node metadata    
+        this.dataNodes = {}; //Maps each data node ID to its Node metadata    
         this.init_master(this.pubsub);
 
         this.alivelist = {} //nodeID, bool
@@ -20,11 +20,16 @@ class Master{
         return new Promise((resolve, reject) => {
             pubsub.subscribe('init', (req) => {
                 var newid = uuidv1();
-                this.pubsub.publish('init', {
+                pubsub.publish('init', {
                     sender: 'master',
                     nodeID = newid,
                     message: "Acknowledged by master"
                 });
+
+                // Add to list of alive nodes
+                this.dataNodes[newid] = []; //modify to metadata object
+                this.alivelist[newid] = true;
+                
             }).then((topic) => { 
                 console.log(`subscribed to ${topic}`)
                 resolve("success");
