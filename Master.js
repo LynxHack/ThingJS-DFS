@@ -69,7 +69,7 @@ class Master{
                 pubsub.subscribe('heartbeat', (req) => {
                     if(req.sender === 'master'){return}
                     var nodeID = req.sender;
-                    console.log(`Received heartbeat response from ${nodeID});
+                    console.log(`Received heartbeat response from ${nodeID}`);
 		    if(typeof this.alivelist[nodeID] !== "undefined"){
                         this.alivelist[nodeID] = true;
                     }
