@@ -20,57 +20,66 @@ class Master{
     }
     
     init_client_handshake(pubsub){
-        return new Promise(resolve => {
-            pubsub.subscribe('client', (req) => {
-                pubsub.publish('client', {
-                    sender: 'master',
-                    message: `${req.sender} Connected to master`
+        return new Promise((resolve, reject) => {
+            try{
+                pubsub.subscribe('client', (req) => {
+                    pubsub.publish('client', {
+                        sender: 'master',
+                        message: `${req.sender} Connected to master`
+                    });
+                    console.log(`${req.sender} Connected to master`);
+                    
+                }).then((topic) => { 
+                    console.log(`subscribed to ${topic}`);
+                    resolve("success");
                 });
-                console.log(`${req.sender} Connected to master`);
-                
-            }).then((topic) => { 
-                console.log(`subscribed to ${topic}`);
-                resolve("success");
-            });
+            }
+            catch(err){ reject(err); }
         });
     }
 
     init_master_handshake(pubsub){
-        return new Promise(resolve => {
-            pubsub.subscribe('init', (req) => {
-                var newid = uuidv1();
-                pubsub.publish('init', {
-                    sender: 'master',
-                    message: newid
+        return new Promise((resolve, reject) => {
+            try{
+                pubsub.subscribe('init', (req) => {
+                    var newid = uuidv1();
+                    pubsub.publish('init', {
+                        sender: 'master',
+                        message: newid
+                    });
+    
+                    // Add to list of alive nodes
+                    this.dataNodes[newid] = []; //modify to metadata object
+                    this.alivelist[newid] = true;
+    
+                    console.log(`Added node ${newid} to list of nodes`);
+                    
+                }).then((topic) => { 
+                    console.log(`subscribed to ${topic}`);
+                    resolve("success");
                 });
-
-                // Add to list of alive nodes
-                this.dataNodes[newid] = []; //modify to metadata object
-                this.alivelist[newid] = true;
-
-                console.log(`Added node ${newid} to list of nodes`);
-                
-            }).then((topic) => { 
-                console.log(`subscribed to ${topic}`);
-                resolve("success");
-            });
+            }
+            catch(err){reject(err)}
         });
     }
 
     // Initializes heartbeat
     init_master_heartbeat(pubsub){
-        return new Promise(resolve => {
-            pubsub.subscribe('heartbeat', (req) => {
-                var nodeID = req.sender;
-                console.log(`Received heartbeat request from ${nodeID}`)
-                if(this.alivelist[nodeID]){
-                    alivelist[nodeID] = true;
-                }
-            }).then((topic) => {
-                console.log(`subscribed to ${topic}`)
-                checknodes(); 
-                resolve("success");
-            })
+        return new Promise((resolve, reject) => {
+            try{
+                pubsub.subscribe('heartbeat', (req) => {
+                    var nodeID = req.sender;
+                    console.log(`Received heartbeat request from ${nodeID}`)
+                    if(this.alivelist[nodeID]){
+                        alivelist[nodeID] = true;
+                    }
+                }).then((topic) => {
+                    console.log(`subscribed to ${topic}`)
+                    checknodes(); 
+                    resolve("success");
+                })
+            }
+            catch(err){reject(err)}
         });
     }
 
@@ -78,13 +87,16 @@ class Master{
     // Initialize channel for filestorage comm
     init_master_filestore(pubsub){
         // TODO subscribe to file storage
-        return new Promise(resolve => {
-            pubsub.subscribe("store", (req) => {
-                // listen to incoming message for whether action is successfull
-            }).then((topic) => {
-                console.log(`subscribed to ${topic}`);
-                resolve("success");
-            })
+        return new Promise((resolve, reject) => {
+            try{
+                pubsub.subscribe("store", (req) => {
+                    // listen to incoming message for whether action is successfull
+                }).then((topic) => {
+                    console.log(`subscribed to ${topic}`);
+                    resolve("success");
+                })
+            }
+            catch(err){reject(err)}
         })
     }
     
