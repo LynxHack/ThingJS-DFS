@@ -2,6 +2,9 @@ const dbs_store = require('./dbs_store');
 const things = require('things-js');
 class ThingsNode{
     constructor(pubsubURL){
+        if(!pubsubURL){
+            pubsubURL = 'mqtt://192.168.50.101'
+        };
         this.pubsub = new things.Pubsub(pubsubURL);
         this.nodeID;
         this.storageDir; //TODO
@@ -9,17 +12,46 @@ class ThingsNode{
 
         this.dfs;
 
-        this.init_client(this.pubsub);
+        this.init_slave(this.pubsub);
     }
  
     // init connection with Master
-    init_client(pubsub){
-        this.init_client_handshake(pubsub);
-        this.init_client_heartbeat(pubsub);
-        this.init_client_filestorage(pubsub);
+    async init_slave(pubsub){
+        await this.init_slave_handshake(pubsub);
+        await this.init_slave_heartbeat(pubsub);
+        await this.init_slave_filestore(pubsub);
     }
 
-    init_client_filestorage(pubsub){
+    init_slave_handshake(pubsub){
+        return new Promise((resolve, reject) => {
+            //connect to thing-js pubsub
+            pubsub.subscribe("init", (req) => {
+                if(req.sender !== "master"){return;}
+                this.nodeID = req.message;
+            }).then("subscribed to pubsub");
+
+            //Make first publication to master
+            pubsub.publish("init", {
+                sender: 'newnode', //not yet initialized
+                message: 'Request Connection'
+            })
+            initheartbeat();
+        })
+    }
+
+    init_slave_heartbeat(pubsub){
+        pubsub.subscribe("heartbeat", (req) => {
+            if(req.sender !== "master"){ return; }
+            // respond back right away to indicate still alive
+            console.log("Received heartbeat request from master")
+            pubsub.publish("heartbeat", {
+                sender: this.nodeID,
+                message: 'Still alive'
+            })
+        });
+    }
+
+    init_slave_filestore(pubsub){
         this.dfs = new dbs_store();
         pubsub.subscribe("store", (req) => {
             if(req.sender !== "master"){return;}
@@ -32,36 +64,10 @@ class ThingsNode{
                     this.dfs.update(req.data); break;
                 case "delete":
                     this.dfs.delete(req.data); break;
-                case "default":
+                default:
                     throw new Error("Unknown dfs request");
             }
         })
-    }
-
-    init_client_handshake(pubsub){
-        //connect to thing-js pubsub
-        pubsub.subscribe("init", (req) => {
-            if(req.sender !== "master"){return;}
-            this.nodeID = req.nodeID;
-        }).then("subscribed to pubsub");
-
-        //Make first publication to master
-        pubsub.publish("init", {
-            sender: 'newnode', //not yet initialized
-            message: 'Request Connection'
-        })
-        initheartbeat();
-    }
-
-    init_client_heartbeat(pubsub){
-        pubsub.subscribe("heartbeat", (req) => {
-            if(req.sender !== "master"){ return; }
-            // respond back right away to indicate still alive
-            pubsub.publish("heartbeat", {
-                sender: this.nodeID,
-                message: 'Still alive'
-            })
-        });
     }
 }
 

@@ -1,9 +1,9 @@
 const storage = require("node-persist");
 
 class dbs_store{
-    constructor(){
+    constructor(directory){
         await storage.init({
-            dir: './dfs_store',
+            dir: directory,
             stringify: JSON.stringify,
             parse: JSON.parse,
             encoding: 'utf8',
@@ -23,7 +23,6 @@ class dbs_store{
         }
         return true;
     }
-
 
     // Returns request data (data is a key)
     read(data){
