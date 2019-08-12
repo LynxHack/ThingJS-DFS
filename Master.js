@@ -75,7 +75,7 @@ class Master{
                     }
                 }).then((topic) => {
                     console.log(`subscribed to ${topic}`)
-                    checknodes(); 
+                    this.checknodes(); 
                     resolve("success");
                 })
             }
@@ -113,14 +113,14 @@ class Master{
         }
 
         // do something to deadnodes' lost information
-        reduplicate(deadnodes);
+        this.reduplicate(deadnodes);
 
         // Reset state of alive list and send heartbeat request to all nodes
         Object.keys(this.alivelist).forEach(v => this.alivelist[v] = false) //initiate all to false
         this.pubsub.publish('heartbeat', {sender: "master", message: "Are you alive"})
         
         // Validate in 4 seconds
-        setTimeout(() => {checknodes()}, 4000);
+        setTimeout(() => {this.checknodes()}, 4000);
     }
 
     // Takes in a list of nodes that would be dead, and reduplicates
