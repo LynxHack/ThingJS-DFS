@@ -68,6 +68,7 @@ class Master{
         return new Promise((resolve, reject) => {
             try{
                 pubsub.subscribe('heartbeat', (req) => {
+                    if(req.sender === 'master'){return}
                     var nodeID = req.sender;
                     console.log(`Received heartbeat request from ${nodeID}`)
                     if(this.alivelist[nodeID]){
