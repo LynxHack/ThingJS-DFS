@@ -24,49 +24,68 @@ class ThingsNode{
 
     init_slave_handshake(pubsub){
         return new Promise((resolve, reject) => {
-            //connect to thing-js pubsub
-            pubsub.subscribe("init", (req) => {
-                if(req.sender !== "master"){return;}
-                this.nodeID = req.message;
-            }).then("subscribed to pubsub");
+            try{
+                //connect to thing-js pubsub
+                pubsub.subscribe("init", (req) => {
+                    if(req.sender !== "master"){return;}
+                    this.nodeID = req.message;
+                }).then(()=>{
+                    resolve("subscribed");
+                    console.log("subscribed to pubsub")
+                });
 
-            //Make first publication to master
-            pubsub.publish("init", {
-                sender: 'newnode', //not yet initialized
-                message: 'Request Connection'
-            })
-            initheartbeat();
+                //Make first publication to master
+                pubsub.publish("init", {
+                    sender: 'newnode', //not yet initialized
+                    message: 'Request Connection'
+                })
+            }
+            catch(err){reject(err)}
         })
     }
 
     init_slave_heartbeat(pubsub){
-        pubsub.subscribe("heartbeat", (req) => {
-            if(req.sender !== "master"){ return; }
-            // respond back right away to indicate still alive
-            console.log("Received heartbeat request from master")
-            pubsub.publish("heartbeat", {
-                sender: this.nodeID,
-                message: 'Still alive'
-            })
-        });
+        return new Promise((resolve, reject) => {
+            try{
+                pubsub.subscribe("heartbeat", (req) => {
+                    if(req.sender !== "master"){ return; }
+                    // respond back right away to indicate still alive
+                    console.log("Received heartbeat request from master")
+                    pubsub.publish("heartbeat", {
+                        sender: this.nodeID,
+                        message: 'Still alive'
+                    })
+                }).then(()=>{
+                    resolve("success")
+                })
+            }
+            catch(err){reject(err)}
+        })
     }
 
     init_slave_filestore(pubsub){
-        this.dfs = new dbs_store();
-        pubsub.subscribe("store", (req) => {
-            if(req.sender !== "master"){return;}
-            switch(req.action){
-                case "create":
-                    this.dfs.create(req.data); break;
-                case "read":
-                    this.dfs.read(req.data); break;
-                case "update":
-                    this.dfs.update(req.data); break;
-                case "delete":
-                    this.dfs.delete(req.data); break;
-                default:
-                    throw new Error("Unknown dfs request");
+        return new Promise((resolve, reject) => {
+            try{
+                this.dfs = new dbs_store();
+                pubsub.subscribe("store", (req) => {
+                    if(req.sender !== "master"){return;}
+                    switch(req.action){
+                        case "create":
+                            this.dfs.create(req.data); break;
+                        case "read":
+                            this.dfs.read(req.data); break;
+                        case "update":
+                            this.dfs.update(req.data); break;
+                        case "delete":
+                            this.dfs.delete(req.data); break;
+                        default:
+                            throw new Error("Unknown dfs request");
+                    }
+                }).then(()=>{
+                    resolve("success");
+                })
             }
+            catch(err){reject(err)}
         })
     }
 }
