@@ -42,6 +42,7 @@ class Master{
         return new Promise((resolve, reject) => {
             try{
                 pubsub.subscribe('init', (req) => {
+                    if(req.sender !== 'newnode'){return}
                     var newid = uuidv1();
                     pubsub.publish('init', {
                         sender: 'master',
@@ -53,7 +54,6 @@ class Master{
                     this.alivelist[newid] = true;
     
                     console.log(`Added node ${newid} to list of nodes`);
-                    
                 }).then((topic) => { 
                     console.log(`subscribed to ${topic}`);
                     resolve("success");
@@ -106,7 +106,7 @@ class Master{
         // Get list of dead nodes
         console.log("Checking nodes ...")
         var deadnodes = [];
-        for(node in this.alivelist){ 
+        for(let node in this.alivelist){ 
             if(!this.alivelist[node]){
                 console.log(`${node} is dead`);
                 deadnodes.push(node);

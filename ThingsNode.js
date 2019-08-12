@@ -6,7 +6,7 @@ class ThingsNode{
             pubsubURL = 'mqtt://192.168.50.101'
         };
         this.pubsub = new things.Pubsub(pubsubURL);
-        this.nodeID;
+        this.nodeID = "newnode";
         this.storageDir; //TODO
         this.fileDir; //TODO
 
@@ -30,13 +30,14 @@ class ThingsNode{
                     if(req.sender !== "master"){return;}
                     this.nodeID = req.message;
                 }).then(()=>{
-                    resolve("subscribed");
-                    console.log("subscribed to pubsub")
+                    console.log("registered with master")
+                    pubsub.unsubscribe("init");
+                    resolve("registered");
                 });
 
                 //Make first publication to master
                 pubsub.publish("init", {
-                    sender: 'newnode', //not yet initialized
+                    sender: nodeID, //not yet initialized
                     message: 'Request Connection'
                 })
             }
