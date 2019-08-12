@@ -29,11 +29,10 @@ class ThingsNode{
                 pubsub.subscribe("init", (req) => {
                     if(req.sender !== "master"){return;}
                     this.nodeID = req.message;
-                }).then(()=>{
-                    console.log("registered with master")
-                    pubsub.unsubscribe("init");
-                    resolve("registered");
-                });
+		    console.log("registered with master");
+		    pubsub.unsubscribe("init");
+		    resolve("registered");
+                })
 
                 //Make first publication to master
                 pubsub.publish("init", {

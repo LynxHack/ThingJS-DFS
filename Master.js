@@ -51,12 +51,11 @@ class Master{
     
                     // Add to list of alive nodes
                     this.dataNodes[newid] = []; //modify to metadata object
-                    this.alivelist[newid] = true;
-    
+                    this.alivelist[newid] = true; 
                     console.log(`Added node ${newid} to list of nodes`);
                 }).then((topic) => { 
                     console.log(`subscribed to ${topic}`);
-                    resolve("success");
+		    resolve(true);
                 });
             }
             catch(err){reject(err)}
@@ -70,9 +69,9 @@ class Master{
                 pubsub.subscribe('heartbeat', (req) => {
                     if(req.sender === 'master'){return}
                     var nodeID = req.sender;
-                    console.log(`Received heartbeat request from ${nodeID}`)
-                    if(this.alivelist[nodeID]){
-                        alivelist[nodeID] = true;
+                    console.log(`Received heartbeat response from ${nodeID});
+		    if(typeof this.alivelist[nodeID] !== "undefined"){
+                        this.alivelist[nodeID] = true;
                     }
                 }).then((topic) => {
                     console.log(`subscribed to ${topic}`)
@@ -87,7 +86,6 @@ class Master{
 
     // Initialize channel for filestorage comm
     init_master_filestore(pubsub){
-        // TODO subscribe to file storage
         return new Promise((resolve, reject) => {
             try{
                 pubsub.subscribe("store", (req) => {
@@ -105,7 +103,8 @@ class Master{
     checknodes(){
         // Get list of dead nodes
         console.log("Checking nodes ...")
-        var deadnodes = [];
+        console.log(this.alivelist);
+	var deadnodes = [];
         for(let node in this.alivelist){ 
             if(!this.alivelist[node]){
                 console.log(`${node} is dead`);
@@ -117,9 +116,9 @@ class Master{
         this.reduplicate(deadnodes);
 
         // Reset state of alive list and send heartbeat request to all nodes
-        Object.keys(this.alivelist).forEach(v => this.alivelist[v] = false) //initiate all to false
-        this.pubsub.publish('heartbeat', {sender: "master", message: "Are you alive"})
-        
+       Object.keys(this.alivelist).forEach(v => this.alivelist[v] = false);
+       this.pubsub.publish('heartbeat', {sender: "master", message: "Check status"});
+
         // Validate in 4 seconds
         setTimeout(() => {this.checknodes()}, 4000);
     }
