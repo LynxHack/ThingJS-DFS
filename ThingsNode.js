@@ -31,14 +31,18 @@ class ThingsNode{
                     this.nodeID = req.message;
 		    console.log("registered with master");
 		    pubsub.unsubscribe("init");
+		    clearInterval(timer);
 		    resolve("registered");
                 })
 
                 //Make first publication to master
-                pubsub.publish("init", {
-                    sender: nodeID, //not yet initialized
-                    message: 'Request Connection'
-                })
+                var timer = setInterval(()=>{
+		    console.log("Attempt connection with master");
+		    pubsub.publish("init", {
+		    	sender: this.nodeID,
+			message: "Request connection"
+		    })
+		}, 1000);
             }
             catch(err){reject(err)}
         })
@@ -66,7 +70,7 @@ class ThingsNode{
     init_slave_filestore(pubsub){
         return new Promise((resolve, reject) => {
             try{
-                this.dfs = new dbs_store();
+                this.dfs = new dbs_store('./');
                 pubsub.subscribe("store", (req) => {
                     if(req.sender !== "master"){return;}
                     switch(req.action){
