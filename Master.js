@@ -25,10 +25,9 @@ class Master{
                 pubsub.subscribe('client', (req) => {
                     pubsub.publish('client', {
                         sender: 'master',
-                        message: `${req.sender} Connected to master`
+                        message: `client ${req.sender} Connected to master`
                     });
-                    console.log(`${req.sender} Connected to master`);
-                    
+                    console.log(`client ${req.sender} connected to master`);
                 }).then((topic) => { 
                     console.log(`subscribed to ${topic}`);
                     resolve("success");

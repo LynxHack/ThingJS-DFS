@@ -9,7 +9,7 @@ class Client{
         this.pubsub = new things.Pubsub(pubsubURL);
         this.clientid = uuidv1();
 
-        await init_client(pubsub);
+        init_client(pubsub);
     }
 
     // Connect with master to begin communication
@@ -32,7 +32,7 @@ class Client{
         })
     }
 
-    
+
     // New Entry
     write(dir, data){
         this.pubsub.publish('client', {

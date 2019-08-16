@@ -24,30 +24,34 @@ class dbs_store{
     // Adds data information to database
     async create(data){
         for(key in data){
-            await this.storage.setItem(key, data[key]);
+            console.log(key, data[key])
+            await storage.setItem(key, data[key])
         }
+        console.log("New file stored");
+        console.log(res);
         return true;
     }
 
     // Returns request data (data is a key)
     async read(data){
-        return storage.getItem(data);
+        var res = await storage.getItem(data)
+        return res;
     }
 
-    // Update a specific key
+    // Update a specific key, TODO: guarantee atomicity by rolling back if fails partially
     async update(data){
         for(key in data){
-            await this.storage.setItem(key, data[key]);
+            await storage.setItem(key, data[key]);
         }
         return true;
     }
 
-    // Delete (TODO, modify to set for removal so can be recovered)
+    // Delete TODO, modify to set for removal so can be recovered)
     async delete(data){
-        await this.storage.removeItem(data);
-        return true;
+        var res = await storage.removeItem(data);
+        console.log(res)
+        return res.removed;
     }
-
 }
 
 module.exports = dbs_store;
