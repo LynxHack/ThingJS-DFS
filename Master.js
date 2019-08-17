@@ -10,40 +10,64 @@ class Master{
         this.dataNodes = {}; //Maps each data node ID to its Node metadata    
         this.alivelist = {} //nodeID, bool
 
-        this.init_master(this.pubsub);
+        this.metadata = {
+            "testdir" : {
+                primary: "primtestNode",
+                secondary: ["test1", "test2"]
+            }
+        };
+
+        this.init_master();
     }
 
-    async init_master(pubsub){
-        await this.init_master_handshake(pubsub);
-        await this.init_master_heartbeat(pubsub);
-        await this.init_master_filestore(pubsub);
+    async init_master(){
+        await this.init_client_listening();
+        await this.init_master_heartbeat();
+        await this.init_master_filestore();
     }
     
-    init_client_handshake(pubsub){
+
+    // Communication between clients and master
+    init_client_listening(){
         return new Promise((resolve, reject) => {
             try{
-                pubsub.subscribe('client', (req) => {
-                    pubsub.publish('client', {
-                        sender: 'master',
-                        message: `client ${req.sender} Connected to master`
-                    });
-                    console.log(`client ${req.sender} connected to master`);
+                this.pubsub.subscribe('client', (req) => {
+                    var client = req.sender;
+                    console.log("Request from" + client);
+                    if(req.type === "read"){
+                        this.pubsub.publish({sender: 'master', recipient: client, data: this.metadata[dir]})
+                    }
+                    else if(req.type === "write"){
+                        this.pubsub.publish({sender: 'master', recipient: client, data: "todo"})
+                    }
+                    else if(req.type === "append"){
+                        this.pubsub.publish({sender: 'master', recipient: client, data: "todo"})
+                    }
+                    else if(req.type === "delete"){
+                        this.pubsub.publish({sender: 'master', recipient: client, data: "todo"})
+                    }
+                    else{
+                        this.pubsub.publish({sender: 'master', recipient: client, data: "Unknown command"})
+                    }
                 }).then((topic) => { 
                     console.log(`subscribed to ${topic}`);
-                    resolve("success");
+                    resolve(true);
                 });
             }
             catch(err){ reject(err); }
         });
     }
 
-    init_master_handshake(pubsub){
+
+
+    // Initial Communication between slaves and master
+    init_master_handshake(){
         return new Promise((resolve, reject) => {
             try{
-                pubsub.subscribe('init', (req) => {
+                this.pubsub.subscribe('init', (req) => {
                     if(req.sender !== 'newnode'){return}
                     var newid = uuidv1();
-                    pubsub.publish('init', {
+                    this.pubsub.publish('init', {
                         sender: 'master',
                         message: newid
                     });
@@ -54,59 +78,63 @@ class Master{
                     console.log(`Added node ${newid} to list of nodes`);
                 }).then((topic) => { 
                     console.log(`subscribed to ${topic}`);
-		    resolve(true);
+		            resolve(true);
                 });
             }
             catch(err){reject(err)}
         });
     }
 
+
+
+
     // Initializes heartbeat
-    init_master_heartbeat(pubsub){
+    init_master_heartbeat(){
         return new Promise((resolve, reject) => {
             try{
-                pubsub.subscribe('heartbeat', (req) => {
+                this.pubsub.subscribe('heartbeat', (req) => {
                     if(req.sender === 'master'){return}
                     var nodeID = req.sender;
                     console.log(`Received heartbeat response from ${nodeID}`);
-		    if(typeof this.alivelist[nodeID] !== "undefined"){
+
+		            if(typeof this.alivelist[nodeID] !== "undefined"){
                         this.alivelist[nodeID] = true;
                     }
                 }).then((topic) => {
                     console.log(`subscribed to ${topic}`)
                     this.checknodes(); 
-                    resolve("success");
+                    resolve(true);
                 })
             }
             catch(err){reject(err)}
         });
     }
 
-
-    // Initialize channel for filestorage comm
-    init_master_filestore(pubsub){
-        return new Promise((resolve, reject) => {
-            try{
-                pubsub.subscribe("store", (req) => {
-                    // listen to incoming message for whether action is successfull
-                }).then((topic) => {
-                    console.log(`subscribed to ${topic}`);
-                    resolve("success");
-                })
-            }
-            catch(err){reject(err)}
-        })
+    // Given a list of nodes, pick a primary and two secondary nodes
+    //TODO pick node based on amount of storage
+    pickNode(){
+        var numNodes = this.dataNodesObject.keys(this.dataNodes).length;
+        var i = Math.floor(numNodes * Math.random()); //pick random node between 0 to len - 1
+        return this.dataNodes[i];
     }
-    
+
+    // Takes in a list of nodes that would be dead, and reduplicates
+    // its lost information to another available node
+    reduplicate(nodes){
+        // TODO find new nodes to reduplicate lost information
+    }
+
+
     // Set infinite loop of 4 second heartbeat monitoring of nodes
     checknodes(){
         // Get list of dead nodes
         console.log("Checking nodes ...")
         console.log(this.alivelist);
-	var deadnodes = [];
+	    var deadnodes = [];
         for(let node in this.alivelist){ 
             if(!this.alivelist[node]){
                 console.log(`${node} is dead`);
+                delete this.dataNodes[node]; //delete the node from existing list to pick from
                 deadnodes.push(node);
             }
         }
@@ -120,12 +148,6 @@ class Master{
 
         // Validate in 4 seconds
         setTimeout(() => {this.checknodes()}, 4000);
-    }
-
-    // Takes in a list of nodes that would be dead, and reduplicates
-    // its lost information to another available node
-    reduplicate(nodes){
-        // TODO
     }
 }
 

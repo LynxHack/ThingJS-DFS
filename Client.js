@@ -8,73 +8,66 @@ class Client{
         };
         this.pubsub = new things.Pubsub(pubsubURL);
         this.clientid = uuidv1();
-
-        init_client(pubsub);
     }
 
-    // Connect with master to begin communication
-    init_client(pubsub){
+    // sends a message out to a channel and awaits a reponse (for one time comm)
+    // 
+    mqttRequest(channel, message, recipient){
         return new Promise((resolve, reject) => {
-            pubsub.subscribe('client', (req) => {
-                if(req.sender === 'master'){
-                    console.log(req.message);
-                    console.log("Connected to master successfully")
-                    pubsub.unsubscibe('client');
-                    resolve("Connected to master successfully")
-                }
-            });
-
-            pubsub.publish('client', {
-                sender: client + `clientid`,
-                type: 'Connect',
-                message: `client${clientid} connecting to master`
-            });
+            try{
+                this.pubsub.subscribe(channel, (req) => {
+                    if(req.recipient === recipient){ //only resolve once message is intended for this recipient
+                        this.pubsub.unsubscribe(channel);
+                        resolve(req);
+                    }
+                }).then(() => {
+                    this.pubsub.publish(channel, message);
+                });
+            }
+            catch(err){
+                reject(err);
+            }
         })
+    }
+
+    // Read Operation
+    async read(dir){
+        // obtain information from master regarding metadata
+        var nodeInfo = await this.mqttRequest('client', {
+            sender: this.clientid,
+            recipient: 'master',
+            data: null,
+            dir : dir,
+            type: 'read'
+        }, this.clientid)
+
+        // sends out read request to the primary node to read the information
+        var result = await this.mqttRequest('store', {
+            sender: this.clientid,
+            recipient: nodeInfo.primary,
+            data: null,
+            dir : dir,
+            type: 'read'
+        }, this.clientid)
+
+        console.log(result);
+        return result;
     }
 
 
     // New Entry
-    write(dir, data){
-        this.pubsub.publish('client', {
-            sender: client + `clientid`,
-            data: data,
-            dir : dir,
-            type: 'write',
-            message: `write file`
-        });
-    }
-
-    // Read Operation
-    read(dir){
-        this.pubsub.publish('client', {
-            sender: client + `clientid`,
-            // data: data,
-            dir : dir,
-            type: 'read',
-            message: `client${clientid} connecting to master`
-        });
+    async write(dir, data){
+        
     }
 
     // Update
-    append(dir, data){
-        this.pubsub.publish('client', {
-            sender: client + `clientid`,
-            data: data,
-            dir : dir,
-            type: 'append',
-            message: `client${clientid} connecting to master`
-        });
+    async append(dir, data){
+        
     }
 
     // Delete Entry
-    delete(dir){
-        pubsub.publish('client', {
-            sender: client + `clientid`,
-            // data: data,
-            dir : dir,
-            type: 'delete',
-            message: `client${clientid} connecting to master`
-        });
+    async delete(dir){
+        
     }
 }
 

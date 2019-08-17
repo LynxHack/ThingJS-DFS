@@ -12,50 +12,51 @@ class ThingsNode{
 
         this.dfs;
 
-        this.init_slave(this.pubsub);
+        this.init_slave();
     }
  
     // init connection with Master
-    async init_slave(pubsub){
-        await this.init_slave_handshake(pubsub);
-        await this.init_slave_heartbeat(pubsub);
-        await this.init_slave_filestore(pubsub);
+    async init_slave(){
+        await this.init_slave_handshake();
+        await this.init_slave_heartbeat();
+        await this.init_chunkserver();
     }
 
-    init_slave_handshake(pubsub){
+    init_slave_handshake(){
         return new Promise((resolve, reject) => {
             try{
                 //connect to thing-js pubsub
-                pubsub.subscribe("init", (req) => {
-                    if(req.sender !== "master"){return;}
+                this.pubsub.subscribe("init", (req) => {
+                    if(req.sender !== "master"){return}
+
                     this.nodeID = req.message;
-		    console.log("registered with master");
-		    pubsub.unsubscribe("init");
-		    clearInterval(timer);
-		    resolve("registered");
+                    console.log("registered with master");
+                    this.pubsub.unsubscribe("init");
+                    clearInterval(timer);
+                    resolve("registered");
                 })
 
                 //Make first publication to master
                 var timer = setInterval(()=>{
-		    console.log("Attempt connection with master");
-		    pubsub.publish("init", {
-		    	sender: this.nodeID,
-			message: "Request connection"
-		    })
+                    console.log("Attempt connection with master");
+                    this.pubsub.publish("init", {
+                        sender: this.nodeID,
+                    message: "Request connection"
+                })
 		}, 1000);
             }
             catch(err){reject(err)}
         })
     }
 
-    init_slave_heartbeat(pubsub){
+    init_slave_heartbeat(){
         return new Promise((resolve, reject) => {
             try{
-                pubsub.subscribe("heartbeat", (req) => {
+                this.pubsub.subscribe("heartbeat", (req) => {
                     if(req.sender !== "master"){ return; }
                     // respond back right away to indicate still alive
                     console.log("Received heartbeat request from master")
-                    pubsub.publish("heartbeat", {
+                    this.pubsub.publish("heartbeat", {
                         sender: this.nodeID,
                         message: 'Still alive'
                     })
@@ -67,21 +68,46 @@ class ThingsNode{
         })
     }
 
-    init_slave_filestore(pubsub){
+    // Listen to incoming mutation or read requests from clients
+    init_chunkserver(){
         return new Promise((resolve, reject) => {
             try{
                 this.dfs = new dbs_store('./');
-                pubsub.subscribe("store", (req) => {
+                this.pubsub.subscribe("store", (req) => {
                     if(req.sender !== "master"){return;}
-                    switch(req.action){
-                        case "create":
-                            this.dfs.create(req.data); break;
-                        case "read":
-                            this.dfs.read(req.data); break;
-                        case "update":
-                            this.dfs.update(req.data); break;
+                    switch(req.type){
+                        case 'read':
+                            var res = await this.dfs.read(req.data); 
+                            this.pubsub.publish('store', {
+                                sender: this.nodeID,
+                                recipient: req.sender,
+                                data: res
+                            })
+                            break;
+                        case "write":
+                            var res = await this.dfs.write(req.data); 
+                            this.pubsub.publish('store', {
+                                sender: this.nodeID,
+                                recipient: req.sender,
+                                data: res
+                            })
+                            break;
+                        case "append":
+                            this.dfs.append(req.data); 
+                            this.pubsub.publish('store', {
+                                sender: this.nodeID,
+                                recipient: req.sender,
+                                data: res
+                            })
+                            break;
                         case "delete":
-                            this.dfs.delete(req.data); break;
+                            this.dfs.delete(req.data); 
+                            this.pubsub.publish('store', {
+                                sender: this.nodeID,
+                                recipient: req.sender,
+                                data: res
+                            })
+                            break;
                         default:
                             throw new Error("Unknown dfs request");
                     }

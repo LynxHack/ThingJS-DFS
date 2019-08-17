@@ -21,16 +21,6 @@ class dbs_store{
         })();
     }
 
-    // Adds data information to database
-    async create(data){
-        for(key in data){
-            console.log(key, data[key])
-            await storage.setItem(key, data[key])
-        }
-        console.log("New file stored");
-        console.log(res);
-        return true;
-    }
 
     // Returns request data (data is a key)
     async read(data){
@@ -38,8 +28,18 @@ class dbs_store{
         return res;
     }
 
+    // Adds data information to database
+    async write(data){
+        for(key in data){
+            console.log(key, data[key])
+            await storage.setItem(key, data[key])
+        }
+        console.log("New file stored", data);
+        return true;
+    }
+
     // Update a specific key, TODO: guarantee atomicity by rolling back if fails partially
-    async update(data){
+    async append(data){
         for(key in data){
             await storage.setItem(key, data[key]);
         }
