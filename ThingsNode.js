@@ -70,32 +70,30 @@ class ThingsNode{
 
     // Listen to incoming mutation or read requests from clients
     async init_chunkserver(){
-        return new Promise((resolve, reject) => {
-            try{
-                this.dfs = new dbs_store('./');
-                this.pubsub.subscribe("store", (req) => {
-                    if(req.sender !== "master"){return}
-                    switch(req.type){
-                        case 'read':
-                            var res = await this.dfs.read(req.data); 
-                            this.pubsub.publish('store', { sender: this.nodeID, recipient: req.sender, data: res }); break;
-                        case "write":
-                            var res = await this.dfs.write(req.data); 
-                            this.pubsub.publish('store', { sender: this.nodeID, recipient: req.sender, data: res }); break;
-                        case "append":
-                            var res = await this.dfs.append(req.data); 
-                            this.pubsub.publish('store', { sender: this.nodeID, recipient: req.sender, data: res }); break;
-                        case "delete":
-                            var res = await this.dfs.delete(req.data); 
-                            this.pubsub.publish('store', { sender: this.nodeID, recipient: req.sender, data: res }); break;
-                        default:
-                            throw new Error("Unknown dfs request");
-                    }
-                })
-            }
-            catch(err){return err}
-            return true;
-        })
+        try{
+            this.dfs = new dbs_store('./');
+            this.pubsub.subscribe("store", (req) => {
+                if(req.sender !== "master"){return}
+                switch(req.type){
+                    case 'read':
+                        var res = await this.dfs.read(req.data); 
+                        this.pubsub.publish('store', { sender: this.nodeID, recipient: req.sender, data: res }); break;
+                    case "write":
+                        var res = await this.dfs.write(req.data); 
+                        this.pubsub.publish('store', { sender: this.nodeID, recipient: req.sender, data: res }); break;
+                    case "append":
+                        var res = await this.dfs.append(req.data); 
+                        this.pubsub.publish('store', { sender: this.nodeID, recipient: req.sender, data: res }); break;
+                    case "delete":
+                        var res = await this.dfs.delete(req.data); 
+                        this.pubsub.publish('store', { sender: this.nodeID, recipient: req.sender, data: res }); break;
+                    default:
+                        throw new Error("Unknown dfs request");
+                }
+            })
+        }
+        catch(err){return err}
+        return true;
     }
 }
 
