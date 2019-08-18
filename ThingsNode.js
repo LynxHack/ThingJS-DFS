@@ -72,7 +72,7 @@ class ThingsNode{
     async init_chunkserver(){
         try{
             this.dfs = new dbs_store('./');
-            this.pubsub.subscribe("store", (req) => {
+            this.pubsub.subscribe("store", async (req) => {
                 if(req.sender !== "master"){return}
                 switch(req.type){
                     case 'read':
