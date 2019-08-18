@@ -11,7 +11,7 @@ class Master{
         this.alivelist = {} //nodeID, bool
 
         this.metadata = {
-            "testdir" : {
+            "testfile" : {
                 primary: "primtestNode",
                 secondary: ["test1", "test2"]
             }
@@ -33,18 +33,18 @@ class Master{
             try{
                 this.pubsub.subscribe('client', (req) => {
                     var client = req.sender;
+                    var file = req.file;
                     console.log("Request from" + client);
                     if(req.type === "read"){
-                        this.pubsub.publish({sender: 'master', recipient: client, data: this.metadata[dir]})
+                        this.pubsub.publish({sender: 'master', recipient: client, data: this.metadata[file]})
                     }
-                    else if(req.type === "write"){
-                        this.pubsub.publish({sender: 'master', recipient: client, data: "todo"})
-                    }
-                    else if(req.type === "append"){
-                        this.pubsub.publish({sender: 'master', recipient: client, data: "todo"})
+                    else if(req.type === "write" || req.type === "append"){
+                        var resNode = this.metadata[file] ? this.metadata[file] : this.pickNode();
+                        this.pubsub.publish({sender: 'master', recipient: client, data: resNode})
                     }
                     else if(req.type === "delete"){
-                        this.pubsub.publish({sender: 'master', recipient: client, data: "todo"})
+                        var resNode = this.metadata[file] ? this.metadata[file] : "error";
+                        this.pubsub.publish({sender: 'master', recipient: client, data: resNode})
                     }
                     else{
                         this.pubsub.publish({sender: 'master', recipient: client, data: "Unknown command"})
@@ -85,9 +85,6 @@ class Master{
         });
     }
 
-
-
-
     // Initializes heartbeat
     init_master_heartbeat(){
         return new Promise((resolve, reject) => {
@@ -117,6 +114,7 @@ class Master{
         var i = Math.floor(numNodes * Math.random()); //pick random node between 0 to len - 1
         return this.dataNodes[i];
     }
+
 
     // Takes in a list of nodes that would be dead, and reduplicates
     // its lost information to another available node

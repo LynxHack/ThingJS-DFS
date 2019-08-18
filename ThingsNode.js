@@ -41,9 +41,9 @@ class ThingsNode{
                     console.log("Attempt connection with master");
                     this.pubsub.publish("init", {
                         sender: this.nodeID,
-                    message: "Request connection"
-                })
-		}, 1000);
+                        message: "Request connection"
+                    })
+		        }, 1000);
             }
             catch(err){reject(err)}
         })
@@ -61,7 +61,7 @@ class ThingsNode{
                         message: 'Still alive'
                     })
                 }).then(()=>{
-                    resolve("success")
+                    resolve(true)
                 })
             }
             catch(err){reject(err)}
@@ -74,40 +74,20 @@ class ThingsNode{
             try{
                 this.dfs = new dbs_store('./');
                 this.pubsub.subscribe("store", (req) => {
-                    if(req.sender !== "master"){return;}
+                    if(req.sender !== "master"){return}
                     switch(req.type){
                         case 'read':
                             var res = await this.dfs.read(req.data); 
-                            this.pubsub.publish('store', {
-                                sender: this.nodeID,
-                                recipient: req.sender,
-                                data: res
-                            })
-                            break;
+                            this.pubsub.publish('store', { sender: this.nodeID, recipient: req.sender, data: res }); break;
                         case "write":
                             var res = await this.dfs.write(req.data); 
-                            this.pubsub.publish('store', {
-                                sender: this.nodeID,
-                                recipient: req.sender,
-                                data: res
-                            })
-                            break;
+                            this.pubsub.publish('store', { sender: this.nodeID, recipient: req.sender, data: res }); break;
                         case "append":
-                            this.dfs.append(req.data); 
-                            this.pubsub.publish('store', {
-                                sender: this.nodeID,
-                                recipient: req.sender,
-                                data: res
-                            })
-                            break;
+                            var res = await this.dfs.append(req.data); 
+                            this.pubsub.publish('store', { sender: this.nodeID, recipient: req.sender, data: res }); break;
                         case "delete":
-                            this.dfs.delete(req.data); 
-                            this.pubsub.publish('store', {
-                                sender: this.nodeID,
-                                recipient: req.sender,
-                                data: res
-                            })
-                            break;
+                            var res = await this.dfs.delete(req.data); 
+                            this.pubsub.publish('store', { sender: this.nodeID, recipient: req.sender, data: res }); break;
                         default:
                             throw new Error("Unknown dfs request");
                     }

@@ -31,13 +31,13 @@ class Client{
     }
 
     // Read Operation
-    async read(dir){
+    async read(file){
         // obtain information from master regarding metadata
         var nodeInfo = await this.mqttRequest('client', {
             sender: this.clientid,
             recipient: 'master',
             data: null,
-            dir : dir,
+            file : file,
             type: 'read'
         }, this.clientid)
 
@@ -46,7 +46,7 @@ class Client{
             sender: this.clientid,
             recipient: nodeInfo.primary,
             data: null,
-            dir : dir,
+            file : file,
             type: 'read'
         }, this.clientid)
 
@@ -56,17 +56,17 @@ class Client{
 
 
     // New Entry
-    async write(dir, data){
+    async write(file, data){
         
     }
 
     // Update
-    async append(dir, data){
+    async append(file, data){
         
     }
 
     // Delete Entry
-    async delete(dir){
+    async delete(file){
         
     }
 }
