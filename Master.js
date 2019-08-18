@@ -22,8 +22,8 @@ class Master{
 
     async init_master(){
         await this.init_client_listening();
+        await this.init_master_handshake();
         await this.init_master_heartbeat();
-        await this.init_master_filestore();
     }
     
 
