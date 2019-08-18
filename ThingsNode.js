@@ -69,7 +69,7 @@ class ThingsNode{
     }
 
     // Listen to incoming mutation or read requests from clients
-    init_chunkserver(){
+    async init_chunkserver(){
         return new Promise((resolve, reject) => {
             try{
                 this.dfs = new dbs_store('./');
@@ -91,11 +91,10 @@ class ThingsNode{
                         default:
                             throw new Error("Unknown dfs request");
                     }
-                }).then(()=>{
-                    resolve("success");
                 })
             }
-            catch(err){reject(err)}
+            catch(err){return err}
+            return true;
         })
     }
 }
