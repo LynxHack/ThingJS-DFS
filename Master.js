@@ -34,20 +34,20 @@ class Master{
                 this.pubsub.subscribe('client', (req) => {
                     var client = req.sender;
                     var file = req.file;
-                    console.log("Request from" + client);
+                    console.log("Request from", client);
                     if(req.type === "read"){
-                        this.pubsub.publish({sender: 'master', recipient: client, data: this.metadata[file]})
+                        this.pubsub.publish('client', {sender: 'master', recipient: client, data: this.metadata[file]})
                     }
                     else if(req.type === "write" || req.type === "append"){
                         var resNode = this.metadata[file] ? this.metadata[file] : this.pickNode();
-                        this.pubsub.publish({sender: 'master', recipient: client, data: resNode})
+                        this.pubsub.publish('client', {sender: 'master', recipient: client, data: resNode})
                     }
                     else if(req.type === "delete"){
                         var resNode = this.metadata[file] ? this.metadata[file] : "error";
-                        this.pubsub.publish({sender: 'master', recipient: client, data: resNode})
+                        this.pubsub.publish('client', {sender: 'master', recipient: client, data: resNode})
                     }
                     else{
-                        this.pubsub.publish({sender: 'master', recipient: client, data: "Unknown command"})
+                        this.pubsub.publish('client', {sender: 'master', recipient: client, data: "Unknown command"})
                     }
                 }).then((topic) => { 
                     console.log(`subscribed to ${topic}`);
