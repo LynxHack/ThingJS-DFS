@@ -21,6 +21,8 @@ class Client{
                         resolve(req);
                     }
                 }).then(() => {
+                    console.log("Making mqtt request");
+                    console.log(channel, message, recipient);
                     this.pubsub.publish(channel, message);
                 });
             }

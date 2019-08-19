@@ -32,6 +32,7 @@ class Master{
         return new Promise((resolve, reject) => {
             try{
                 this.pubsub.subscribe('client', (req) => {
+                    if(req.recipient !== "master"){return}
                     var client = req.sender;
                     var file = req.file;
                     console.log("Request from", client);
