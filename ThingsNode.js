@@ -9,7 +9,6 @@ class ThingsNode{
         this.pubsub = new things.Pubsub(pubsubURL);
         this.nodeID = "newnode";
         this.storagedir = "./"
-        this.dfs;
 
         this.init_slave();
     }
