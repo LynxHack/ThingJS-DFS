@@ -10,12 +10,7 @@ class Master{
         this.dataNodes = {}; //Maps each data node ID to its Node metadata    
         this.alivelist = {} //nodeID, bool
         this.numreplica = 2; //preset value
-        this.metadata = {
-            "testfile" : {
-                primary: "primtestNode",
-                secondary: ["test1", "test2"]
-            }
-        };
+        this.metadata = {};
 
         this.init_master();
     }
@@ -65,6 +60,8 @@ class Master{
                                 primary: primary,
                                 secondary: secondary
                             }
+
+                            this.metadata[file] = resNode;
                             console.log("Master: Performing write file operation on", resNode)
                             this.pubsub.publish('client', {sender: 'master', recipient: client, node: resNode})
                             break;
