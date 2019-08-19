@@ -40,23 +40,23 @@ class dbs_store{
 
 
     // Returns request data (data is a key)
-    async read(data){
-        var res = await storage.getItem(data);
-        console.log("DBS file read", data);
+    async read(file){
+        var res = await storage.getItem(file);
+        console.log("DBS file read", file, res);
         return res;
     }
 
     // Adds data information to database
     async write(file, data){
         await storage.setItem(file, data);
-        console.log("DBS New file stored", file, data);
+        console.log("DBS New file stored", file, JSON.stringify(data));
         return true;
     }
 
     // Update a specific key, TODO: guarantee atomicity by rolling back if fails partially
     async append(file, data){
         await storage.updateItem(file, data);
-        console.log("DBS New file updated", file, data);
+        console.log("DBS New file updated", file, JSON.stringify(data));
         return true;
     }
 
