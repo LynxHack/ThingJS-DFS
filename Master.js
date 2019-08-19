@@ -50,7 +50,8 @@ class Master{
                         case "write":
                             var primaryindex = this.metadata[file] ? this.metadata[file].primary : this.pickNode(nodelist);
                             var primary = nodelist.splice(primaryindex, 1)[0];
-                            var secondary = this.metadata[file] ? this.metadata[file].secondary : [];
+                            console.log(primary)
+			    var secondary = this.metadata[file] ? this.metadata[file].secondary : [];
                             // fill up to up to preset number of replicas
                             for(let i = 0; i < this.numreplica && nodelist.length; i++){
                                 var tmp = nodelist.splice(this.pickNode(nodelist))[0];
