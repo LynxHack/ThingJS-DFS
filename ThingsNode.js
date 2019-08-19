@@ -5,10 +5,10 @@ class ThingsNode{
         if(!pubsubURL){
             pubsubURL = 'mqtt://192.168.50.101'
         };
+        this.storagedir = "./"
         this.dfs = new dbs_store(this.storagedir);
         this.pubsub = new things.Pubsub(pubsubURL);
         this.nodeID = "newnode";
-        this.storagedir = "./"
 
         this.init_slave();
     }
