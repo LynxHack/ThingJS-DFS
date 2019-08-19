@@ -47,7 +47,7 @@ class Client{
         // sends out read request to the primary node to read the information
         var result = await this.mqttRequest('store', {
             sender: this.clientid,
-            recipient: nodeInfo.primary,
+            recipient: nodeInfo.data.primary,
             data: null,
             file : file,
             type: 'read'
