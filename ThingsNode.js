@@ -7,9 +7,7 @@ class ThingsNode{
         };
         this.pubsub = new things.Pubsub(pubsubURL);
         this.nodeID = "newnode";
-        this.storageDir; //TODO
-        this.fileDir; //TODO
-
+        this.storagedir = "./"
         this.dfs;
 
         this.init_slave();
@@ -71,10 +69,10 @@ class ThingsNode{
     // Listen to incoming mutation or read requests from clients
     async init_chunkserver(){
         try{
-            this.dfs = new dbs_store('./');
+            this.dfs = new dbs_store(this.storagedir);
             this.pubsub.subscribe("store", async (req) => {
                 console.log(req);
-                if(req.recipient !== this.nodeID){return}
+                if(req.recipient !== this.nodeID || req.recipient === "primtestNode"){return}
                 console.log("Received incoming request", req);
                 switch(req.type){
                     case 'read':

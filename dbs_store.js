@@ -2,9 +2,10 @@ const storage = require("node-persist");
 
 class dbs_store{
     constructor(directory){
+        this.directory = directory ? directory : './'
         return (async () => {
             await storage.init({
-                dir: directory,
+                dir: this.directory,
                 stringify: JSON.stringify,
                 parse: JSON.parse,
                 encoding: 'utf8',
@@ -15,7 +16,7 @@ class dbs_store{
                 // storage dir, i.e. Google Drive, make this true if you'd like to ignore these files and not throw an error
                 forgiveParseErrors: false
             }).then(()=>{
-                console.log("Storage Initiate")
+                console.log("DBS Storage Initiated")
             });
             return true;
         })();
@@ -24,33 +25,30 @@ class dbs_store{
 
     // Returns request data (data is a key)
     async read(data){
-        var res = await storage.getItem(data)
+        var res = await storage.getItem(data);
+        console.log("DBS file read", data);
         return res;
     }
 
     // Adds data information to database
-    async write(data){
-        for(key in data){
-            console.log(key, data[key])
-            await storage.setItem(key, data[key])
-        }
-        console.log("New file stored", data);
+    async write(file, data){
+        await storage.setItem(file, data);
+        console.log("DBS New file stored", file, data);
         return true;
     }
 
     // Update a specific key, TODO: guarantee atomicity by rolling back if fails partially
-    async append(data){
-        for(key in data){
-            await storage.setItem(key, data[key]);
-        }
+    async append(file, data){
+        await storage.updateItem(file, data);
+        console.log("DBS New file updated", file, data);
         return true;
     }
 
     // Delete TODO, modify to set for removal so can be recovered)
-    async delete(data){
-        var res = await storage.removeItem(data);
-        console.log(res)
-        return res.removed;
+    async delete(file){
+        var res = await storage.removeItem(file);
+        console.log("File removed", res);
+        return res;
     }
 }
 

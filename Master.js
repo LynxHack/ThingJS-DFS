@@ -9,7 +9,7 @@ class Master{
         this.pubsub = new things.Pubsub(pubsubURL);
         this.dataNodes = {}; //Maps each data node ID to its Node metadata    
         this.alivelist = {} //nodeID, bool
-
+        this.numreplica = 2; //preset value
         this.metadata = {
             "testfile" : {
                 primary: "primtestNode",
@@ -26,6 +26,14 @@ class Master{
         await this.init_master_heartbeat();
     }
     
+    
+    // Given a list of nodes, pick a primary and two secondary nodes
+    //TODO pick node based on amount of storage
+    pickNode(nodes){
+        var i = Math.floor(nodes.length * Math.random()); //pick random node between 0 to len - 1
+        return i;
+    }
+
 
     // Communication between clients and master
     init_client_listening(){
@@ -33,22 +41,42 @@ class Master{
             try{
                 this.pubsub.subscribe('client', (req) => {
                     if(req.recipient !== "master"){return}
+                    var nodelist = Object.keys(this.dataNodes)
                     var client = req.sender;
                     var file = req.file;
+                    var data = req.data;
                     console.log("Request from", client);
-                    if(req.type === "read"){
-                        this.pubsub.publish('client', {sender: 'master', recipient: client, data: this.metadata[file]})
-                    }
-                    else if(req.type === "write" || req.type === "append"){
-                        var resNode = this.metadata[file] ? this.metadata[file] : this.pickNode();
-                        this.pubsub.publish('client', {sender: 'master', recipient: client, data: resNode})
-                    }
-                    else if(req.type === "delete"){
-                        var resNode = this.metadata[file] ? this.metadata[file] : "error";
-                        this.pubsub.publish('client', {sender: 'master', recipient: client, data: resNode})
-                    }
-                    else{
-                        this.pubsub.publish('client', {sender: 'master', recipient: client, data: "Unknown command"})
+                    switch(req.type){
+                        case "read":
+                            this.pubsub.publish('client', {sender: 'master', recipient: client, node: this.metadata[file]});
+                            console.log("Master: Performing read file operation on", )
+                            break;
+                        case "append":
+                        case "write":
+                            var primaryindex = this.metadata[file] ? this.metadata[file].primary : this.pickNode(nodelist);
+                            var primary = nodelist.splice(primaryindex, 1);
+                            var secondary = this.metadata[file] ? this.metadata[file].secondary : [];
+                            // fill up to up to preset number of replicas
+                            for(let i = 0; i < this.numreplica && nodelist.length; i++){
+                                var tmp = nodelist.splice(this.pickNode(nodelist));
+                                secondary.push(tmp);
+                            }
+                            var resNode = {
+                                primary: primary,
+                                secondary: secondary
+                            }
+                            console.log("Master: Performing write file operation on", resNode)
+                            this.pubsub.publish('client', {sender: 'master', recipient: client, node: resNode})
+                            break;
+                        case "delete":
+                            var resNode = this.metadata[file] ? this.metadata[file] : "error";
+                            console.log("Master: performing delete file operation on", resNode)
+                            this.pubsub.publish('client', {sender: 'master', recipient: client, node: resNode})
+                            break;
+                        default:
+                            this.pubsub.publish('client', {sender: 'master', recipient: client, node: "Unknown command"});
+                            break;
+
                     }
                 }).then((topic) => { 
                     console.log(`subscribed to ${topic}`);
@@ -106,14 +134,6 @@ class Master{
             }
             catch(err){reject(err)}
         });
-    }
-
-    // Given a list of nodes, pick a primary and two secondary nodes
-    //TODO pick node based on amount of storage
-    pickNode(){
-        var numNodes = this.dataNodesObject.keys(this.dataNodes).length;
-        var i = Math.floor(numNodes * Math.random()); //pick random node between 0 to len - 1
-        return this.dataNodes[i];
     }
 
 

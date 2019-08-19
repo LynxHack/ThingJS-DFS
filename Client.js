@@ -47,7 +47,7 @@ class Client{
         // sends out read request to the primary node to read the information
         var result = await this.mqttRequest('store', {
             sender: this.clientid,
-            recipient: nodeInfo.data.primary,
+            recipient: nodeInfo.node.primary,
             data: null,
             file : file,
             type: 'read'
@@ -57,10 +57,28 @@ class Client{
         return result;
     }
 
-
     // New Entry
     async write(file, data){
-        
+            // obtain information from master regarding metadata
+            var nodeInfo = await this.mqttRequest('client', {
+                sender: this.clientid,
+                recipient: 'master',
+                data: data,
+                file : file,
+                type: 'write'
+            }, this.clientid)
+    
+            // sends out write request to the primary node to write the information
+            var result = await this.mqttRequest('store', {
+                sender: this.clientid,
+                recipient: nodeInfo.node.primary,
+                data: data,
+                file : file,
+                type: 'write'
+            }, this.clientid)
+    
+            console.log(result);
+            return result;
     }
 
     // Update
