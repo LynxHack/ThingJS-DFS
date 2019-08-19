@@ -18,6 +18,7 @@ class Client{
                 this.pubsub.subscribe(channel, (req) => {
                     if(req.recipient === recipient){ //only resolve once message is intended for this recipient
                         this.pubsub.unsubscribe(channel);
+                        console.log("Received reply", req);
                         resolve(req);
                     }
                 }).then(() => {

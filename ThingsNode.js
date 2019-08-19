@@ -73,7 +73,8 @@ class ThingsNode{
         try{
             this.dfs = new dbs_store('./');
             this.pubsub.subscribe("store", async (req) => {
-                if(req.sender !== "master"){return}
+                if(req.recipient !== this.nodeID){return}
+                console.log("Received incoming request", req);
                 switch(req.type){
                     case 'read':
                         var res = await this.dfs.read(req.data); 
