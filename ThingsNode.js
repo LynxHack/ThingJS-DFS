@@ -5,6 +5,7 @@ class ThingsNode{
         if(!pubsubURL){
             pubsubURL = 'mqtt://192.168.50.101'
         };
+        this.dfs = new dbs_store(this.storagedir);
         this.pubsub = new things.Pubsub(pubsubURL);
         this.nodeID = "newnode";
         this.storagedir = "./"
@@ -69,13 +70,12 @@ class ThingsNode{
     // Listen to incoming mutation or read requests from clients
     async init_chunkserver(){
         try{
-            this.dfs = new dbs_store(this.storagedir);
             this.pubsub.subscribe("store", async (req) => {
                 console.log(req);
-                if(req.recipient !== this.nodeID || req.recipient === "primtestNode"){return}
+                if(req.recipient !== this.nodeID){return}
                 console.log("Received incoming request", req);
                 switch(req.type){
-                    case 'read':
+                    case "read":
                         var res = await this.dfs.read(req.data); 
                         this.pubsub.publish('store', { sender: this.nodeID, recipient: req.sender, data: res }); break;
                     case "write":

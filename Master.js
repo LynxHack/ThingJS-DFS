@@ -49,11 +49,11 @@ class Master{
                         case "append":
                         case "write":
                             var primaryindex = this.metadata[file] ? this.metadata[file].primary : this.pickNode(nodelist);
-                            var primary = nodelist.splice(primaryindex, 1);
+                            var primary = nodelist.splice(primaryindex, 1)[0];
                             var secondary = this.metadata[file] ? this.metadata[file].secondary : [];
                             // fill up to up to preset number of replicas
                             for(let i = 0; i < this.numreplica && nodelist.length; i++){
-                                var tmp = nodelist.splice(this.pickNode(nodelist));
+                                var tmp = nodelist.splice(this.pickNode(nodelist))[0];
                                 secondary.push(tmp);
                             }
                             var resNode = {
