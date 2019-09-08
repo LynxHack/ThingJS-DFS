@@ -78,7 +78,7 @@ class ThingsNode{
                 switch(req.type){
                     case "read":
                         var res = await this.dfs.read(req.file); 
-                        var res = JSON.parse(res);
+
                         this.pubsub.publish('store', { sender: this.nodeID, recipient: req.sender, data: res }); break;
                     case "write":
 			            var res = await this.dfs.write(req.file, req.data); 

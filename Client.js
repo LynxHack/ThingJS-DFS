@@ -1,6 +1,6 @@
 const things = require('things-js');
 const uuidv1 = require('uuid/v1');
-const {mqttRequest} = require('utility.js');
+const {mqttRequest} = require('./utility.js');
 class Client{
     constructor(pubsubURL){
         if(!pubsubURL){
@@ -36,7 +36,7 @@ class Client{
     // Read Operation
     async read(file){
         // obtain information from master regarding metadata
-        var nodeInfo = await mqttRequest('client', {
+        var nodeInfo = await mqttRequest('client', this.pubsub, {
             sender: this.clientid,
             recipient: 'master',
             secondary: null,
@@ -46,7 +46,7 @@ class Client{
         }, this.clientid)
 
         // sends out read request to the primary node to read the information
-        var result = await mqttRequest('store', {
+        var result = await mqttRequest('store', this.pubsub, {
             sender: this.clientid,
             recipient: nodeInfo.node.primary,
             secondary: nodeInfo.node.secondary,
@@ -65,7 +65,7 @@ class Client{
     //then fail and says the file already exist, should do append instead
     async write(file, data){
             // obtain information from master regarding metadata
-            var nodeInfo = await mqttRequest('client', {
+            var nodeInfo = await mqttRequest('client', this.pubsub, {
                 sender: this.clientid,
                 recipient: 'master',
                 secondary: null,
@@ -75,7 +75,7 @@ class Client{
             }, this.clientid)
     
             // sends out write request to the primary node to write the information
-            var result = await mqttRequest('store', {
+            var result = await mqttRequest('store', this.pubsub, {
                 sender: this.clientid,
                 recipient: nodeInfo.node.primary,
                 secondary: nodeInfo.node.secondary,
@@ -90,7 +90,7 @@ class Client{
 
     // Update
     async append(file, data){
-        var nodeInfo = await mqttRequest('client', {
+        var nodeInfo = await mqttRequest('client', this.pubsub, {
             sender: this.clientid,
             recipient: 'master',
             data: data,
@@ -109,7 +109,7 @@ class Client{
         }
 
         // sends out write request to the primary node to write the information
-        var result = await mqttRequest('store', {
+        var result = await mqttRequest('store', this.pubsub, {
             sender: this.clientid,
             recipient: nodeInfo.node.primary,
             data: data,

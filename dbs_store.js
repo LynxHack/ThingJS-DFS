@@ -48,15 +48,16 @@ class dbs_store{
 
     // Adds data information to database
     async write(file, data){
-        await storage.setItem(file, data);
-        console.log("DBS New file stored", file, JSON.stringify(data));
+	console.log(JSON.stringify(data))
+        await storage.setItem(file, JSON.stringify(data));
+        console.log("DBS New file stored", file, data);
         return true;
     }
 
     // Update a specific key, TODO: guarantee atomicity by rolling back if fails partially
     async append(file, data){
-        await storage.updateItem(file, data);
-        console.log("DBS New file updated", file, JSON.stringify(data));
+        await storage.updateItem(file, JSON.stringify(data));
+        console.log("DBS New file updated", file, data);
         return true;
     }
 
