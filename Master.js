@@ -1,7 +1,6 @@
 const things = require('things-js');
 const uuidv1 = require('uuid/v1');
-const debug = require('debug.js');
-const {mqttRequest} = require('utility.js');
+const {mqttRequest} = require('./utility.js');
 
 
 class Master{
@@ -15,14 +14,17 @@ class Master{
         this.numreplica = 2; //preset value
         this.metadata = {};
         this.masteralive = true;
-
-        isMaster = await this.check_existing_master();
-        if(isMaster){
-            this.init_master();
-        }
-        else{
-            this.init_shadow_master();
-        }
+	console.log("Begin checking master");
+        this.check_existing_master().then((isMaster) => {
+		if(isMaster){
+			console.log("Init master");
+			this.init_master();
+		}
+		else{
+			console.log("Init shadowmaster");
+			this.init_shadow_master();
+		}
+	});
     }
 
     check_master_alive(){
@@ -36,13 +38,14 @@ class Master{
 
     //TODO init shadow master //check if already existing master, if yes, initiate a shadow master class instead
     async init_master(){
+	this.nodeID = 'master';
         await this.init_client_listening();
         await this.init_master_handshake();
         await this.init_master_heartbeat();
     }
     
     async init_shadow_master(){
-        this.nodeID = 'shadowmaster'
+        this.nodeID = 'shadowmaster';
         await this.init_client_listening();
         await this.init_master_handshake();
         await this.init_master_heartbeat();
@@ -69,6 +72,7 @@ class Master{
     // Communication between clients and master
     init_client_listening(){
         return new Promise((resolve, reject) => {
+	    console.log("init promise")
             try{
                 this.pubsub.subscribe('client', (req) => {
                     if(req.recipient !== "master"){return}
@@ -116,7 +120,9 @@ class Master{
                     resolve(true);
                 });
             }
-            catch(err){reject(err);}
+            catch(err){
+		    
+		    reject(err);}
         });
     }
 
@@ -146,25 +152,51 @@ class Master{
             catch(err){reject(err)}
         });
     }
+	
+	listen_master_heartbeat(){
+		var masteralive = false
+		this.pubsub.subscribe('heartbeat', (req) =>{
+			if(req.sender === 'master'){
+				masteralive = true;
+			}
+		});
+		var timer = setInterval(() => {
+			if(!masteralive){
+				clearInterval(timer);
+				this.pubsub.unsubscribe('heartbeat');
+				console.log("Master not responsive");
+			}
+		
+		}, 4000);
+
+		//TODO pick shadowmaster
+		console.log("Picking next master to promote")
+
+	}
 
     // existing master heartbeat check per 4 seconds
     check_existing_master(){
+	console.log("Checking existing")
         return new Promise((resolve, reject) => {
             try{
                 var timer;
+		console.log("subscribing");
                 this.pubsub.subscribe('heartbeat', (req) => {
                     if(req.sender === 'master'){
-                        clearInterval(timer);
-                        this.nodeID = 'shadowmaster'
-                        resolve(true); //there is already a master, initialize this to a shadow master
+			console.log("Got a response from existing master");
+                        clearTimeout(timer);
+                        this.nodeID = 'shadowmaster';
+                        this.pubsub.unsubscribe('heartbeat');
+			resolve(false); //there is already a master, initialize this to a shadow master
                     }
-                }).then((topic) => {
-                    console.log(`subscribed to ${topic}`)
-                    timer = setTimeout(()=>{
-                        this.nodeID = 'master'
-                        resolve(false); //there is no existing master, initialize this to a real master
-                    }, 4000)
-                })
+		}
+		)
+              	console.log("setting timer")
+                timer = setTimeout(()=>{
+                    this.nodeID = 'master';
+		    this.pubsub.unsubscribe('heartbeat');
+                    resolve(true); //there is no existing master, initialize this to a real master
+                }, 4000)
             }
             catch(err){reject(err)}
         });
@@ -176,10 +208,11 @@ class Master{
         return new Promise((resolve, reject) => {
             try{
                 this.pubsub.subscribe('heartbeat', (req) => {
-                    if(req.sender === 'master'){return}
-                    if(req.sender === 'shadowmaster'){
+                    if(req.sender === this.nodeID){return}
+                    if(req.sender === 'shadowmaster' &&  this.nodeID === "master"){
                         this.pubsub.publish('heartbeat', {
-                            sender = 
+				sender: this.nodeID,
+				message: 'Master is still up'
                         });
                     }
                     var nodeID = req.sender;

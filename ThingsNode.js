@@ -1,6 +1,6 @@
 const dbs_store = require('./dbs_store');
 const things = require('things-js');
-const {mqttRequest} = require('utility.js');
+const {mqttRequest} = require('./utility.js');
 
 class ThingsNode{
     constructor(pubsubURL){
