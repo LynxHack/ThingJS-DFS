@@ -77,22 +77,17 @@ class ThingsNode{
                 console.log("Received incoming request", req);
                 switch(req.type){
                     case "read":
-                        var res = await this.dfs.read(req.data); 
-                        // var res = JSON.parse(res);
+                        var res = await this.dfs.read(req.file); 
+                        var res = JSON.parse(res);
                         this.pubsub.publish('store', { sender: this.nodeID, recipient: req.sender, data: res }); break;
                     case "write":
-                        this.pubsub.publish('store', {
-                            sender: this.nodeID,
-                            recipient: req.secondary,
-                            data: 
-                        })
-                        var res = await this.dfs.write(req.data); 
+			            var res = await this.dfs.write(req.file, req.data); 
                         this.pubsub.publish('store', { sender: this.nodeID, recipient: req.sender, data: res }); break;
                     case "append":
-                        var res = await this.dfs.append(req.data); 
+                        var res = await this.dfs.append(req.file, req.data); 
                         this.pubsub.publish('store', { sender: this.nodeID, recipient: req.sender, data: res }); break;
                     case "delete":
-                        var res = await this.dfs.delete(req.data); 
+                        var res = await this.dfs.delete(req.file); 
                         this.pubsub.publish('store', { sender: this.nodeID, recipient: req.sender, data: res }); break;
                     default:
                         throw new Error("Unknown dfs request");
