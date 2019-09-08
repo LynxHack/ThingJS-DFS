@@ -1,5 +1,8 @@
 const things = require('things-js');
 const uuidv1 = require('uuid/v1');
+const debug = require('debug.js');
+const {mqttRequest} = require('utility.js');
+
 
 class Master{
     constructor(pubsubURL){
@@ -11,22 +14,55 @@ class Master{
         this.alivelist = {} //nodeID, bool
         this.numreplica = 2; //preset value
         this.metadata = {};
+        this.masteralive = true;
 
-        this.init_master();
+        isMaster = await this.check_existing_master();
+        if(isMaster){
+            this.init_master();
+        }
+        else{
+            this.init_shadow_master();
+        }
     }
 
+    check_master_alive(){
+        if(!this.masteralive){
+            this.promote_master();
+        }
+        this.masteralive = false;
+
+        setTimeout(this.check_master_alive(), 2000);
+    }
+
+    //TODO init shadow master //check if already existing master, if yes, initiate a shadow master class instead
     async init_master(){
         await this.init_client_listening();
         await this.init_master_handshake();
         await this.init_master_heartbeat();
     }
     
+    async init_shadow_master(){
+        this.nodeID = 'shadowmaster'
+        await this.init_client_listening();
+        await this.init_master_handshake();
+        await this.init_master_heartbeat();
+
+        //Keep checking if master is down
+        this.check_master_alive();
+    }
+
+    async promote_master(){
+        this.nodeID = 'master'; //set to the main master
+
+        // TODO
+        // -> enable singularity checking (no duplicate master -> fail safe protocol
+    }
+
     
     // Given a list of nodes, pick a primary and two secondary nodes
     //TODO pick node based on amount of storage
     pickNode(nodes){
-        var i = Math.floor(nodes.length * Math.random()); //pick random node between 0 to len - 1
-        return i;
+        return Math.floor(nodes.length * Math.random()); //pick random node between 0 to len - 1;
     }
 
 
@@ -44,14 +80,13 @@ class Master{
                     switch(req.type){
                         case "read":
                             this.pubsub.publish('client', {sender: 'master', recipient: client, node: this.metadata[file]});
-                            console.log("Master: Performing read file operation on", )
-                            break;
+                            console.log("Master: Performing read file operation on", file)
+                            break;                            
                         case "append":
                         case "write":
                             var primaryindex = this.metadata[file] ? this.metadata[file].primary : this.pickNode(nodelist);
                             var primary = nodelist.splice(primaryindex, 1)[0];
-                            console.log(primary)
-			    var secondary = this.metadata[file] ? this.metadata[file].secondary : [];
+			                var secondary = this.metadata[file] ? this.metadata[file].secondary : [];
                             // fill up to up to preset number of replicas
                             for(let i = 0; i < this.numreplica && nodelist.length; i++){
                                 var tmp = nodelist.splice(this.pickNode(nodelist))[0];
@@ -81,7 +116,7 @@ class Master{
                     resolve(true);
                 });
             }
-            catch(err){ reject(err); }
+            catch(err){reject(err);}
         });
     }
 
@@ -112,12 +147,41 @@ class Master{
         });
     }
 
-    // Initializes heartbeat
+    // existing master heartbeat check per 4 seconds
+    check_existing_master(){
+        return new Promise((resolve, reject) => {
+            try{
+                var timer;
+                this.pubsub.subscribe('heartbeat', (req) => {
+                    if(req.sender === 'master'){
+                        clearInterval(timer);
+                        this.nodeID = 'shadowmaster'
+                        resolve(true); //there is already a master, initialize this to a shadow master
+                    }
+                }).then((topic) => {
+                    console.log(`subscribed to ${topic}`)
+                    timer = setTimeout(()=>{
+                        this.nodeID = 'master'
+                        resolve(false); //there is no existing master, initialize this to a real master
+                    }, 4000)
+                })
+            }
+            catch(err){reject(err)}
+        });
+    }
+
+    // Initializes heartbeat, also check if a master exists here
+    // Only true master gets to send heartbeat checking requests
     init_master_heartbeat(){
         return new Promise((resolve, reject) => {
             try{
                 this.pubsub.subscribe('heartbeat', (req) => {
                     if(req.sender === 'master'){return}
+                    if(req.sender === 'shadowmaster'){
+                        this.pubsub.publish('heartbeat', {
+                            sender = 
+                        });
+                    }
                     var nodeID = req.sender;
                     console.log(`Received heartbeat response from ${nodeID}`);
 
@@ -141,7 +205,6 @@ class Master{
         // TODO find new nodes to reduplicate lost information
     }
 
-
     // Set infinite loop of 4 second heartbeat monitoring of nodes
     checknodes(){
         // Get list of dead nodes
@@ -160,11 +223,13 @@ class Master{
         this.reduplicate(deadnodes);
 
         // Reset state of alive list and send heartbeat request to all nodes
-       Object.keys(this.alivelist).forEach(v => this.alivelist[v] = false);
-       this.pubsub.publish('heartbeat', {sender: "master", message: "Check status"});
+        Object.keys(this.alivelist).forEach(v => this.alivelist[v] = false);
+        if(this.nodeID === 'master'){
+            this.pubsub.publish('heartbeat', {sender: "master", message: "Check status"});
+        }
 
-        // Validate in 4 seconds
-        setTimeout(() => {this.checknodes()}, 4000);
+        // Validate in 2 seconds
+        setTimeout(() => {this.checknodes()}, 2000);
     }
 }
 

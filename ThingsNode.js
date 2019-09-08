@@ -1,5 +1,7 @@
 const dbs_store = require('./dbs_store');
 const things = require('things-js');
+const {mqttRequest} = require('utility.js');
+
 class ThingsNode{
     constructor(pubsubURL){
         if(!pubsubURL){
@@ -76,9 +78,14 @@ class ThingsNode{
                 switch(req.type){
                     case "read":
                         var res = await this.dfs.read(req.data); 
-                        var res = JSON.parse(res);
+                        // var res = JSON.parse(res);
                         this.pubsub.publish('store', { sender: this.nodeID, recipient: req.sender, data: res }); break;
                     case "write":
+                        this.pubsub.publish('store', {
+                            sender: this.nodeID,
+                            recipient: req.secondary,
+                            data: 
+                        })
                         var res = await this.dfs.write(req.data); 
                         this.pubsub.publish('store', { sender: this.nodeID, recipient: req.sender, data: res }); break;
                     case "append":
